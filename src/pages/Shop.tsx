@@ -434,7 +434,7 @@ function ProductCard({
   index: number
   viewMode: 'grid' | 'list'
   language: 'ar' | 'en'
-  t: typeof translations.ar
+  t: any
 }) {
   if (viewMode === 'list') {
     return (

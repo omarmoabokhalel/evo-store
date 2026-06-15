@@ -1,4 +1,4 @@
-import { Routes, Route, ScrollRestoration } from 'react-router'
+import { Routes, Route } from 'react-router'
 import { lazy, Suspense, useEffect } from 'react'
 import { useThemeStore } from '@/stores/themeStore'
 import { useLanguageStore } from '@/stores/languageStore'
@@ -18,6 +18,7 @@ const OrderTracking = lazy(() => import('@/pages/OrderTracking'))
 const Customizer = lazy(() => import('@/pages/Customizer'))
 const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'))
 const Login = lazy(() => import('@/pages/Login'))
+const MockLogin = lazy(() => import('@/pages/MockLogin'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function LoadingFallback() {
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/customizer" element={<Customizer />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/mock-login" element={<MockLogin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

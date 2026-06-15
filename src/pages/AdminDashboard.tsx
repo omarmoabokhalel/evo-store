@@ -1,10 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard,
   ShoppingBag,
-  Users,
   TrendingUp,
   DollarSign,
   Package,
@@ -13,13 +12,10 @@ import {
   ArrowDownRight,
   Search,
   Filter,
-  ChevronDown,
   BarChart3,
-  PieChart as PieChartIcon,
   Activity,
   Mail,
   Send,
-  Settings,
   LogOut,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'

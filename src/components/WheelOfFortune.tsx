@@ -20,7 +20,7 @@ const WHEEL_SEGMENTS = [
 ]
 
 export default function WheelOfFortune() {
-  const { isLoggedIn, wheelDiscount, wheelUsed, wheelExpiry, setWheelDiscount } = useAuthStore()
+  const { isLoggedIn, wheelDiscount, wheelUsed, setWheelDiscount } = useAuthStore()
   const [isVisible, setIsVisible] = useState(false)
   const [isSpinning, setIsSpinning] = useState(false)
   const [rotation, setRotation] = useState(0)

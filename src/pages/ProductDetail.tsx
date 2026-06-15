@@ -475,7 +475,7 @@ function AITryOnModal({
   product: typeof demoProducts[0]
   selectedColor: string
   onClose: () => void
-  t: typeof translations.ar
+  t: any
 }) {
   const [step, setStep] = useState<'upload' | 'processing' | 'result'>('upload')
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
