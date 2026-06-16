@@ -5,7 +5,6 @@ import {
   ShoppingBag,
   CreditCard,
   Banknote,
-  Truck,
   ChevronRight,
   ChevronLeft,
   Lock,

@@ -57,7 +57,7 @@ function VortexPlane({
   )
 }
 
-function FloatingText({ text, index, total }: { text: string; index: number; total: number }) {
+function FloatingText({ index, total }: { index: number; total: number }) {
   const meshRef = useRef<THREE.Mesh>(null)
   const angle = (index / total) * Math.PI * 2 + Math.PI / 4
   const radius = 4
@@ -145,7 +145,7 @@ function Scene() {
 
       {/* Floating Text Elements */}
       {textWords.map((word, i) => (
-        <FloatingText key={word} text={word} index={i} total={textWords.length} />
+        <FloatingText key={word} index={i} total={textWords.length} />
       ))}
 
       {/* Particles */}

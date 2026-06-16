@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "react-router";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,25 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, User, Loader2, Sparkles, KeyRound, Mail, Camera } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/authStore";
 
 export default function MockLogin() {
-  const location = useLocation();
+  const navigate = useNavigate();
+  const { setLoggedIn, setAdmin } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Parse state and redirect_uri from the URL search params
-  const searchParams = new URLSearchParams(location.search);
-  const state = searchParams.get("state") || "";
-  
-  // Default values
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [avatar, setAvatar] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
-
-  // If redirect on auth is initialized, display a toast
-  useEffect(() => {
-    toast.info("Connecting to Secure Identity Gateway...");
-  }, []);
 
   const handlePresetSelect = (preset: "admin" | "user") => {
     if (preset === "admin") {
@@ -44,7 +36,7 @@ export default function MockLogin() {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) {
       toast.error("Please fill in Name and Email fields.");
@@ -52,27 +44,20 @@ export default function MockLogin() {
     }
 
     setIsLoading(true);
-    try {
-      const response = await fetch("/api/auth/mock-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, avatar, role, state }),
+
+    // Small artificial delay for UX feel
+    setTimeout(() => {
+      // Directly update the Zustand store — no backend needed
+      setLoggedIn({
+        name,
+        email,
+        avatar: avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6B46C1&color=fff`,
       });
+      setAdmin(role === "admin");
 
-      if (!response.ok) {
-        throw new Error("Failed to generate authorization code");
-      }
-
-      const data = await response.json();
-      toast.success("Identity authorized! Redirecting back...");
-      setTimeout(() => {
-        window.location.href = data.redirectUrl;
-      }, 1000);
-    } catch (err) {
-      console.error(err);
-      toast.error("Authentication failed. Please try again.");
-      setIsLoading(false);
-    }
+      toast.success(`Welcome, ${name}! 🎉`);
+      navigate("/");
+    }, 800);
   };
 
   return (
@@ -80,7 +65,7 @@ export default function MockLogin() {
       {/* Background Glowing Ambient Dots */}
       <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-[#6B46C1]/10 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-[#3B82F6]/10 blur-[120px] pointer-events-none" />
-      
+
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -96,10 +81,10 @@ export default function MockLogin() {
               EVO Identity Hub
             </CardTitle>
             <CardDescription className="text-white/60 text-sm mt-1">
-              Secure Single Sign-On Gateway (Simulation)
+              Sign in to access your account
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent className="space-y-6 pt-4">
             {/* Quick Presets */}
             <div className="space-y-2">
@@ -122,7 +107,7 @@ export default function MockLogin() {
                     </div>
                   </div>
                 </button>
-                
+
                 <button
                   type="button"
                   onClick={() => handlePresetSelect("user")}
@@ -134,7 +119,7 @@ export default function MockLogin() {
                     </div>
                     <div>
                       <div className="text-sm font-semibold">Demo Shopper</div>
-                      <div className="text-[10px] text-white/50">Browse & purchase</div>
+                      <div className="text-[10px] text-white/50">Browse &amp; purchase</div>
                     </div>
                   </div>
                 </button>
@@ -221,12 +206,12 @@ export default function MockLogin() {
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Authorizing...
+                    Signing in...
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    Authorize & Sign In
+                    Sign In
                   </>
                 )}
               </Button>

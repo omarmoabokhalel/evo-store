@@ -33,7 +33,7 @@ export default function ProductDetail() {
   const productId = Number(id)
   const product = demoProducts.find((p) => p.id === productId)
   const { addItem } = useCartStore()
-  const { isLoggedIn, addViewed } = useAuthStore()
+  const { addViewed } = useAuthStore()
 
   const [selectedColor, setSelectedColor] = useState('')
   const [selectedSize, setSelectedSize] = useState('')

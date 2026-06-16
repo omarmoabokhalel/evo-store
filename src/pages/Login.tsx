@@ -1,15 +1,12 @@
+import { useNavigate } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { KeyRound, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
-function getMockAuthUrl() {
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
-  const state = btoa(redirectUri);
-  return `/mock-login?state=${state}`;
-}
-
 export default function Login() {
+  const navigate = useNavigate();
+
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-[#07070a] overflow-hidden px-4">
       {/* Background Glowing Ambient Dots */}
@@ -31,19 +28,17 @@ export default function Login() {
               Access Your Account
             </CardTitle>
             <CardDescription className="text-white/60 text-sm mt-1">
-              Select your authentication provider to proceed to EVO Store
+              Sign in to access your EVO Store account
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <Button
               className="w-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] hover:from-[#7C50D1] hover:to-[#4C92F7] text-white font-bold h-12 rounded-xl transition-all shadow-lg hover:shadow-xl hover:shadow-[#6B46C1]/20 flex items-center justify-center gap-2"
               size="lg"
-              onClick={() => {
-                window.location.href = getMockAuthUrl();
-              }}
+              onClick={() => navigate("/mock-login")}
             >
               <Sparkles className="w-4 h-4" />
-              Sign in with External Auth
+              Sign In
             </Button>
           </CardContent>
         </Card>

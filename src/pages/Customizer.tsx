@@ -2,15 +2,11 @@ import { useState, useRef, useCallback } from 'react'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
 import {
-  Upload,
   Sparkles,
   Wand2,
   Download,
   Shirt,
-  Palette,
   ArrowRight,
-  X,
-  ChevronRight,
   ImagePlus,
   Loader2,
 } from 'lucide-react'
@@ -24,7 +20,6 @@ export default function Customizer() {
   const [selectedTShirtColor, setSelectedTShirtColor] = useState('#FFFFFF')
   const [prompt, setPrompt] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
