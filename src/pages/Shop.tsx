@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { useParams, Link } from 'react-router'
+import { useState, useMemo, useEffect } from 'react'
+import { useParams, Link, useSearchParams } from 'react-router'
 import { motion } from 'framer-motion'
 import {
   SlidersHorizontal,
@@ -20,7 +20,8 @@ export default function Shop() {
 
   const { category } = useParams<{ category?: string }>()
   const [selectedCategory, setSelectedCategory] = useState(category || 'all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchParams] = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const [selectedColors, setSelectedColors] = useState<string[]>([])
   const [selectedDesigns, setSelectedDesigns] = useState<string[]>([])
@@ -28,6 +29,11 @@ export default function Shop() {
   const [sortBy, setSortBy] = useState('newest')
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+
+  useEffect(() => {
+    const query = searchParams.get('search') || ''
+    setSearchQuery(query)
+  }, [searchParams])
 
   const sizes = ['S', 'M', 'L', 'XL', 'XXL']
 
@@ -443,7 +449,7 @@ function ProductCard({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.05 }}
       >
-        <Link to={`/product/${product.id}`}  onClick={() => window.scrollTo(0, 0)} className="group flex gap-6 p-4 rounded-2xl bg-card border border-border hover:border-primary/20 hover:bg-foreground/[0.02] hover:shadow-md transition-all">
+        <Link to={`/product/${product.id}`} className="group flex gap-6 p-4 rounded-2xl bg-card border border-border hover:border-primary/20 hover:bg-foreground/[0.02] hover:shadow-md transition-all">
           <div className="relative w-32 h-40 shrink-0 rounded-xl overflow-hidden bg-foreground/5">
             <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
             {product.discount > 0 && (
@@ -485,7 +491,7 @@ function ProductCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
     >
-      <Link to={`/product/${product.id}`}   onClick={() => window.scrollTo(0, 0)} className="group block">
+      <Link to={`/product/${product.id}`} className="group block">
         <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-4">
           <img
             src={product.image}

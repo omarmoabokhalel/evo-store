@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { useThemeStore } from '@/stores/themeStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useCartStore } from '@/stores/cartStore'
@@ -28,9 +28,20 @@ export default function Navbar() {
   const t = translations[language]
   
   const location = useLocation()
+  const navigate = useNavigate()
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [mobileSearch, setMobileSearch] = useState('')
+
+  const handleMobileSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (mobileSearch.trim()) {
+      setIsMobileMenuOpen(false)
+      navigate(`/shop?search=${encodeURIComponent(mobileSearch.trim())}`)
+      setMobileSearch('')
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50)
@@ -110,7 +121,7 @@ export default function Navbar() {
             <div className="flex items-center gap-1 sm:gap-2">
               <Link
                 to="/shop"
-                className={`p-2 rounded-full transition-all duration-300 ${
+                className={`hidden lg:inline-flex p-2 rounded-full transition-all duration-300 ${
                   isNavActive
                     ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -123,7 +134,7 @@ export default function Navbar() {
               {/* Language Switcher */}
               <button
                 onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
-                className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all duration-300 border ${
+                className={`hidden lg:inline-flex px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all duration-300 border ${
                   isNavActive
                     ? 'text-foreground bg-foreground/5 hover:bg-foreground/10 border-border'
                     : 'text-white bg-white/10 hover:bg-white/20 border-white/10'
@@ -149,7 +160,7 @@ export default function Navbar() {
               {/* Wishlist */}
               <Link
                 to="/profile"
-                className={`p-2 rounded-full transition-all duration-300 relative ${
+                className={`hidden lg:inline-flex p-2 rounded-full transition-all duration-300 relative ${
                   isNavActive
                     ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -181,7 +192,7 @@ export default function Navbar() {
 
               {/* User / Profile menu */}
               {isLoggedIn ? (
-                <div className="relative">
+                <div className="relative hidden lg:block">
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                     className={`flex items-center gap-1.5 pl-1.5 pr-2 sm:pl-2 sm:pr-3 py-1 rounded-full transition-all duration-300 ${
@@ -255,7 +266,7 @@ export default function Navbar() {
               ) : (
                 <Link
                   to="/login"
-                  className={`hidden sm:flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
+                  className={`hidden lg:flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
                     isNavActive
                       ? 'bg-foreground text-background hover:bg-foreground/90'
                       : 'bg-white text-black hover:bg-white/90'
@@ -290,40 +301,153 @@ export default function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-40 bg-background/95 backdrop-blur-xl lg:hidden flex flex-col justify-center items-center"
+            className="fixed inset-0 z-40 bg-background/98 backdrop-blur-xl lg:hidden overflow-y-auto px-6 py-24 flex flex-col gap-8"
           >
-            <div className="flex flex-col items-center justify-center gap-6">
-              {navLinks.map((link, i) => (
-                <motion.div
-                  key={link.path}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                >
-                  <Link
-                    to={link.path}
-                    className="text-3xl font-bold tracking-[-0.02em] text-foreground/80 hover:text-foreground transition-colors flex items-center gap-3"
-                  >
-                    {link.icon && <link.icon className="w-6 h-6 text-[#6B46C1]" />}
-                    {link.label}
-                  </Link>
-                </motion.div>
-              ))}
-              {!isLoggedIn && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
+            {/* User Profile Card Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="w-full bg-card border border-border p-5 rounded-3xl flex flex-col gap-4 shadow-sm"
+            >
+              {isLoggedIn ? (
+                <>
+                  <div className="flex items-center gap-3 pb-3 border-b border-border">
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt="" className="w-12 h-12 rounded-full object-cover border border-border" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#6B46C1] to-[#3B82F6] flex items-center justify-center text-base font-bold text-white shadow-sm">
+                        {user?.name?.charAt(0) || 'U'}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-bold text-base text-foreground truncate">{user?.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link
+                      to="/profile"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium border border-border text-foreground hover:bg-foreground/5 transition-all"
+                    >
+                      <User className="w-4 h-4 text-[#6B46C1]" />
+                      {t.profile}
+                    </Link>
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium border border-border text-foreground hover:bg-foreground/5 transition-all"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-[#6B46C1]" />
+                        {t.dashboard}
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => {
+                        setLoggedOut()
+                        setIsMobileMenuOpen(false)
+                      }}
+                      className="col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-bold border border-red-500/20 text-red-500 hover:bg-red-500/5 transition-all"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      {t.logout}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground mb-4">{language === 'ar' ? 'سجل دخولك عشان تتابع طلباتك وتصمم بالـ AI' : 'Sign in to track orders and customize with AI'}</p>
                   <Link
                     to="/login"
-                    className="mt-4 px-8 py-3 rounded-full bg-foreground text-background text-lg font-medium inline-block shadow-lg"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-foreground text-background text-sm font-bold shadow-md hover:opacity-90 transition-all"
                   >
+                    <User className="w-4 h-4" />
                     {t.login}
                   </Link>
-                </motion.div>
+                </div>
               )}
+            </motion.div>
+
+            {/* Mobile Search Bar */}
+            <motion.form
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              onSubmit={handleMobileSearchSubmit}
+              className="relative w-full"
+            >
+              <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder={t.searchPlaceholder}
+                value={mobileSearch}
+                onChange={(e) => setMobileSearch(e.target.value)}
+                className="w-full ps-12 pe-4 py-3.5 rounded-full bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#6B46C1] transition-colors text-sm shadow-xs"
+              />
+              <button
+                type="submit"
+                className="absolute end-2.5 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold shadow-sm"
+              >
+                {language === 'ar' ? 'بحث' : 'Search'}
+              </button>
+            </motion.form>
+
+            {/* Nav Links */}
+            <div className="flex flex-col gap-3 my-4">
+              {navLinks.map((link, i) => {
+                const isActive =
+                  location.pathname === link.path ||
+                  (link.path !== '/' && location.pathname.startsWith(link.path))
+                return (
+                  <motion.div
+                    key={link.path}
+                    initial={{ opacity: 0, x: -25 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.15 + i * 0.05 }}
+                  >
+                    <Link
+                      to={link.path}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-4 py-3.5 px-5 rounded-2xl text-xl font-bold transition-all border ${
+                        isActive
+                          ? 'bg-foreground/5 border-border text-foreground'
+                          : 'border-transparent text-foreground/70 hover:text-foreground hover:bg-foreground/5'
+                      }`}
+                    >
+                      {link.icon ? (
+                        <link.icon className="w-5 h-5 text-[#6B46C1]" />
+                      ) : (
+                        <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                          <span className="w-2 h-2 rounded-full bg-[#6B46C1]/60" />
+                        </div>
+                      )}
+                      {link.label}
+                    </Link>
+                  </motion.div>
+                )
+              })}
             </div>
+
+            {/* Bottom Actions Row */}
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="mt-auto pt-6 border-t border-border flex flex-col gap-4"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-muted-foreground">{language === 'ar' ? 'اللغة' : 'Language'}</span>
+                <button
+                  onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+                  className="px-4 py-2 rounded-full text-xs font-bold border border-border text-foreground bg-card hover:bg-foreground/5 transition-all shadow-xs"
+                >
+                  {language === 'ar' ? 'English (EN)' : 'العربية (عربي)'}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

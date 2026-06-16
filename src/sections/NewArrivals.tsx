@@ -36,7 +36,6 @@ export default function NewArrivals() {
           </div>
           <Link
             to="/shop"
-            onClick={() => window.scrollTo(0, 0)}
             className="group mt-6 md:mt-0 inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-medium text-sm"
           >
             {t.viewAllProducts}

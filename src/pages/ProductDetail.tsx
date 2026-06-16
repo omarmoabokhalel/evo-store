@@ -323,16 +323,16 @@ export default function ProductDetail() {
             </button>
 
             {/* Benefits */}
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-border">
               {[
                 { icon: Truck, label: t.freeShipping, desc: t.freeShippingDesc },
                 { icon: RotateCcw, label: t.easyReturns, desc: t.easyReturnsDesc },
                 { icon: Shield, label: t.securePayment, desc: t.securePaymentDesc },
               ].map(({ icon: Icon, label, desc }) => (
-                <div key={label} className="text-center">
-                  <Icon className="w-6 h-6 text-[#6B46C1] mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-foreground">{label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                <div key={label} className="text-center flex flex-col items-center">
+                  <Icon className="w-6 h-6 text-[#6B46C1] mb-2" />
+                  <p className="text-xs sm:text-sm font-semibold text-foreground">{label}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 max-w-[150px]">{desc}</p>
                 </div>
               ))}
             </div>

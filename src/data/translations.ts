@@ -15,7 +15,7 @@ export const translations = {
     profile: "حسابك",
 
     // Hero Section
-    heroTitle: "إيفو",
+    heroTitle: "EVO",
     heroSubtitle: "الاستايل مش اختياري… ده هوية",
     heroDescription: "مش بنبيع تيشيرتات، بنبيع موقف. تصاميم حصرية مطبوعة بجودة عالية — لأن اللي بتلبسه بيقول عنك أكتر من أي كلام.",
     exploreCollection: "شوف الكولكشن",

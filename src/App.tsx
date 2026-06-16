@@ -8,6 +8,7 @@ import CartDrawer from '@/components/CartDrawer'
 import WheelOfFortune from '@/components/WheelOfFortune'
 import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
+import ScrollToTop from '@/components/ScrollToTop'
 
 const Home = lazy(() => import('@/pages/Home'))
 const Shop = lazy(() => import('@/pages/Shop'))
@@ -44,7 +45,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen transition-colors duration-300 bg-background text-foreground`}>
-       
+      <ScrollToTop />
       <Navbar />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
