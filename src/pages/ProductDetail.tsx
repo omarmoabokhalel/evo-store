@@ -18,12 +18,14 @@ import {
   Check,
   AlertTriangle,
 } from 'lucide-react'
-import { demoProducts, sizeChart, colorOptions } from '@/data/products'
+import { sizeChart, colorOptions } from '@/data/products'
+import type { Product } from '@/data/products'
 import { useCartStore } from '@/stores/cartStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { toast } from 'sonner'
+import { trpc } from '@/providers/trpc'
 
 export default function ProductDetail() {
   const { language } = useLanguageStore()
@@ -31,7 +33,7 @@ export default function ProductDetail() {
 
   const { id } = useParams<{ id: string }>()
   const productId = Number(id)
-  const product = demoProducts.find((p) => p.id === productId)
+  const { data: product, isLoading } = trpc.products.byId.useQuery({ id: productId })
   const { addItem } = useCartStore()
   const { addViewed } = useAuthStore()
 
@@ -46,11 +48,19 @@ export default function ProductDetail() {
   // Track viewed
   useEffect(() => {
     if (product) {
-      setSelectedColor(product.colors[0])
-      setSelectedSize(product.sizes[Math.floor(product.sizes.length / 2)])
+      setSelectedColor(product.colors?.[0] || '')
+      setSelectedSize(product.sizes?.[Math.floor((product.sizes?.length || 0) / 2)] || '')
       addViewed({ id: product.id, name: product.name, image: product.image, viewedAt: new Date().toISOString() })
     }
   }, [product, addViewed])
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
+        <div className="w-12 h-12 border-4 border-[#6B46C1]/20 border-t-[#6B46C1] rounded-full animate-spin" />
+      </main>
+    )
+  }
 
   if (!product) {
     return (
@@ -65,8 +75,12 @@ export default function ProductDetail() {
     )
   }
 
-  const discountedPrice = product.price * (1 - product.discount / 100)
-  const relatedProducts = demoProducts.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 4)
+  const discountedPrice = parseFloat(product.price.toString()) * (1 - (product.discount || 0) / 100)
+  const { data: relatedProducts = [] } = trpc.products.byCategory.useQuery(
+    { category: product.category },
+    { enabled: !!product }
+  )
+  const filteredRelatedProducts = relatedProducts.filter((p) => p.id !== product.id).slice(0, 4)
 
   const handleAddToCart = () => {
     if (!selectedSize || !selectedColor) {
@@ -118,20 +132,20 @@ export default function ProductDetail() {
     <main className="min-h-screen bg-background pt-28 pb-20 transition-colors duration-300">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-8">
-          <Link to="/" className="hover:text-foreground transition-colors font-medium">{t.navHome}</Link>
-          {language === 'ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          <Link to="/shop" className="hover:text-foreground transition-colors font-medium">{t.navShop}</Link>
-          {language === 'ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          <Link to={`/shop/${product.category}`} className="hover:text-foreground transition-colors capitalize font-medium">
+        <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground mb-6 sm:mb-8 overflow-x-auto">
+          <Link to="/" className="hover:text-foreground transition-colors font-medium shrink-0">{t.navHome}</Link>
+          {language === 'ar' ? <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
+          <Link to="/shop" className="hover:text-foreground transition-colors font-medium shrink-0">{t.navShop}</Link>
+          {language === 'ar' ? <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
+          <Link to={`/shop/${product.category}`} className="hover:text-foreground transition-colors capitalize font-medium shrink-0">
             {getCategoryLabel(product.category)}
           </Link>
-          {language === 'ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          <span className="text-foreground truncate max-w-[200px] font-bold">{product.name}</span>
+          {language === 'ar' ? <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
+          <span className="text-foreground truncate max-w-[150px] sm:max-w-[200px] font-bold">{product.name}</span>
         </nav>
 
         {/* Product Grid */}
-        <div className="grid lg:grid-cols-2 gap-12 mb-20">
+        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 mb-12 sm:mb-20">
           {/* Images */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
@@ -144,20 +158,20 @@ export default function ProductDetail() {
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
-              {product.discount > 0 && (
+              {(product.discount || 0) > 0 && (
                 <span className="absolute top-4 start-4 px-4 py-2 rounded-full bg-[#FF2A2A] text-white font-bold text-sm shadow-md">
                   -{product.discount}% {t.off}
                 </span>
               )}
-              {product.stock < 20 && (
+              {(product.stock || 0) < 20 && (
                 <div className="absolute bottom-4 start-4 flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm shadow-sm text-white">
                   <AlertTriangle className="w-4 h-4 text-[#FBBF24]" />
-                  <span className="text-sm font-medium">{t.inStockLeft.replace('{count}', String(product.stock))}</span>
+                  <span className="text-sm font-medium">{t.inStockLeft.replace('{count}', String(product.stock || 0))}</span>
                 </div>
               )}
             </div>
             <div className="flex gap-3">
-              {product.images.map((img, i) => (
+              {product.images?.map((img, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveImage(i)}
@@ -179,30 +193,30 @@ export default function ProductDetail() {
           >
             {/* Header */}
             <div>
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                 {product.isNew && (
-                  <span className="px-3 py-1 rounded-full bg-[#6B46C1]/20 text-[#6B46C1] text-xs font-bold uppercase tracking-wider">
+                  <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#6B46C1]/20 text-[#6B46C1] text-[10px] sm:text-xs font-bold uppercase tracking-wider">
                     {language === 'ar' ? 'جديد' : 'New Arrival'}
                   </span>
                 )}
                 {product.isSpecial && (
-                  <span className="px-3 py-1 rounded-full bg-[#FBBF24]/20 text-[#FBBF24] text-xs font-bold uppercase tracking-wider">
+                  <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FBBF24]/20 text-[#FBBF24] text-[10px] sm:text-xs font-bold uppercase tracking-wider">
                     {language === 'ar' ? 'تصميم مميز' : 'Special Design'}
                   </span>
                 )}
               </div>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-[-0.02em] text-foreground mb-3">{product.name}</h1>
-              <p className="text-muted-foreground leading-relaxed">{product.description}</p>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-[-0.02em] text-foreground mb-2 sm:mb-3">{product.name}</h1>
+              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">{product.description}</p>
             </div>
 
             {/* Price */}
-            <div className="flex items-center gap-4">
-              <span className="text-3xl font-bold text-gradient">${discountedPrice.toFixed(2)}</span>
-              {product.discount > 0 && (
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="text-2xl sm:text-3xl font-bold text-gradient">${discountedPrice.toFixed(2)}</span>
+              {(product.discount || 0) > 0 && (
                 <>
-                  <span className="text-xl text-muted-foreground line-through">${product.price.toFixed(2)}</span>
-                  <span className="px-3 py-1 rounded-full bg-[#FF2A2A]/20 text-[#FF2A2A] text-sm font-bold shadow-sm">
-                    {t.saveAmount.replace('{amount}', `$${(product.price - discountedPrice).toFixed(2)}`)}
+                  <span className="text-lg sm:text-xl text-muted-foreground line-through">${parseFloat(product.price.toString()).toFixed(2)}</span>
+                  <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FF2A2A]/20 text-[#FF2A2A] text-xs sm:text-sm font-bold shadow-sm">
+                    {t.saveAmount.replace('{amount}', `$${(parseFloat(product.price.toString()) - discountedPrice).toFixed(2)}`)}
                   </span>
                 </>
               )}
@@ -214,7 +228,7 @@ export default function ProductDetail() {
                 <h3 className="font-semibold text-foreground">{t.color}: <span className="text-muted-foreground font-normal">{getColorName(selectedColor)}</span></h3>
               </div>
               <div className="flex gap-3">
-                {product.colors.map((color) => (
+                {product.colors?.map((color) => (
                   <button
                     key={color}
                     onClick={() => setSelectedColor(color)}
@@ -248,7 +262,7 @@ export default function ProductDetail() {
                 </button>
               </div>
               <div className="flex gap-2">
-                {product.sizes.map((size) => (
+                {product.sizes?.map((size) => (
                   <button
                     key={size}
                     onClick={() => setSelectedSize(size)}
@@ -265,49 +279,49 @@ export default function ProductDetail() {
             </div>
 
             {/* Quantity & Actions */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-full px-2 py-2 w-full sm:w-auto shrink-0 shadow-sm">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="flex items-center justify-center gap-2 sm:gap-3 bg-card border border-border rounded-full px-2 py-2 w-full sm:w-auto shrink-0 shadow-sm">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-10 h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center text-foreground transition-colors"
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center text-foreground transition-colors"
                 >
-                  <Minus className="w-4 h-4" />
+                  <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
-                <span className="w-10 text-center font-bold text-foreground text-lg">{quantity}</span>
+                <span className="w-8 sm:w-10 text-center font-bold text-foreground text-base sm:text-lg">{quantity}</span>
                 <button
-                  onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                  className="w-10 h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center text-foreground transition-colors"
+                  onClick={() => setQuantity(Math.min(product.stock || 100, quantity + 1))}
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center text-foreground transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               </div>
 
               <button
                 onClick={handleAddToCart}
-                className="flex-1 flex items-center justify-center gap-3 py-4 rounded-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl"
+                className="flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-4 rounded-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
               >
-                <ShoppingBag className="w-5 h-5" />
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
                 {t.addToCart}
               </button>
 
               <div className="flex gap-2 justify-center">
                 <button
                   onClick={() => setIsWishlisted(!isWishlisted)}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all border border-border shadow-sm ${
+                  className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all border border-border shadow-sm ${
                     isWishlisted
                       ? 'bg-[#FF2A2A]/20 text-[#FF2A2A] border-transparent'
                       : 'bg-card text-muted-foreground hover:bg-foreground/5'
                   }`}
                 >
-                  <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-current' : ''}`} />
+                  <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${isWishlisted ? 'fill-current' : ''}`} />
                 </button>
 
                 <button
                   onClick={handleShare}
-                  className="w-14 h-14 rounded-full bg-card border border-border text-muted-foreground hover:bg-foreground/5 flex items-center justify-center transition-all shadow-sm"
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-card border border-border text-muted-foreground hover:bg-foreground/5 flex items-center justify-center transition-all shadow-sm"
                   title="Share"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               </div>
             </div>
@@ -323,16 +337,16 @@ export default function ProductDetail() {
             </button>
 
             {/* Benefits */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 pt-4 sm:pt-6 border-t border-border">
               {[
                 { icon: Truck, label: t.freeShipping, desc: t.freeShippingDesc },
                 { icon: RotateCcw, label: t.easyReturns, desc: t.easyReturnsDesc },
                 { icon: Shield, label: t.securePayment, desc: t.securePaymentDesc },
               ].map(({ icon: Icon, label, desc }) => (
                 <div key={label} className="text-center flex flex-col items-center">
-                  <Icon className="w-6 h-6 text-[#6B46C1] mb-2" />
+                  <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-[#6B46C1] mb-1.5 sm:mb-2" />
                   <p className="text-xs sm:text-sm font-semibold text-foreground">{label}</p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 max-w-[150px]">{desc}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 max-w-[120px] sm:max-w-[150px]">{desc}</p>
                 </div>
               ))}
             </div>
@@ -340,23 +354,23 @@ export default function ProductDetail() {
         </div>
 
         {/* Related Products */}
-        {relatedProducts.length > 0 && (
-          <div className="border-t border-border pt-16">
-            <h2 className="text-2xl font-bold mb-8 text-foreground">{t.youMightAlsoLike}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {relatedProducts.map((p) => (
+        {filteredRelatedProducts.length > 0 && (
+          <div className="border-t border-border pt-8 sm:pt-16">
+            <h2 className="text-xl sm:text-2xl font-bold mb-6 sm:mb-8 text-foreground">{t.youMightAlsoLike}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+              {filteredRelatedProducts.map((p) => (
                 <Link key={p.id} to={`/product/${p.id}`} className="group">
-                  <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-3">
+                  <div className="relative aspect-[3/4] rounded-xl sm:rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-2 sm:mb-3">
                     <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    {p.discount > 0 && (
-                      <span className="absolute top-3 start-3 px-2 py-1 rounded-full bg-[#FF2A2A] text-white text-xs font-bold shadow-sm">
+                    {(p.discount || 0) > 0 && (
+                      <span className="absolute top-2 sm:top-3 start-2 sm:start-3 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full bg-[#FF2A2A] text-white text-[10px] sm:text-xs font-bold shadow-sm">
                         -{p.discount}%
                       </span>
                     )}
                   </div>
-                  <h3 className="font-medium group-hover:text-[#6B46C1] text-foreground transition-colors line-clamp-1">{p.name}</h3>
-                  <p className="font-bold text-sm text-foreground mt-1">
-                    ${(p.price * (1 - p.discount / 100)).toFixed(2)}
+                  <h3 className="font-medium text-sm sm:text-base group-hover:text-[#6B46C1] text-foreground transition-colors line-clamp-1">{p.name}</h3>
+                  <p className="font-bold text-sm sm:text-base text-foreground mt-1">
+                    ${(parseFloat(p.price.toString()) * (1 - (p.discount || 0) / 100)).toFixed(2)}
                   </p>
                 </Link>
               ))}
@@ -472,7 +486,7 @@ function AITryOnModal({
   onClose,
   t,
 }: {
-  product: typeof demoProducts[0]
+  product: Product
   selectedColor: string
   onClose: () => void
   t: any

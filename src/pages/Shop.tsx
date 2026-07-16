@@ -9,10 +9,11 @@ import {
   LayoutGrid,
   LayoutList,
 } from 'lucide-react'
-import { demoProducts, categories, colorOptions, designTypes } from '@/data/products'
+import { categories, colorOptions, designTypes } from '@/data/products'
 import type { Product } from '@/data/products'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
+import { trpc } from '@/providers/trpc'
 
 export default function Shop() {
   const { language } = useLanguageStore()
@@ -30,6 +31,17 @@ export default function Shop() {
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
+  // Fetch products from backend
+  const { data: allProducts = [], isLoading } = trpc.products.list.useQuery()
+  const { data: categoryProducts = [] } = trpc.products.byCategory.useQuery(
+    { category: selectedCategory },
+    { enabled: selectedCategory !== 'all' }
+  )
+  const { data: searchResults = [] } = trpc.products.search.useQuery(
+    { query: searchQuery },
+    { enabled: searchQuery.length > 0 }
+  )
+
   useEffect(() => {
     const query = searchParams.get('search') || ''
     setSearchQuery(query)
@@ -39,55 +51,40 @@ export default function Shop() {
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    let result = [...demoProducts]
-
-    // Category filter
-    if (selectedCategory !== 'all') {
-      result = result.filter((p) => p.category === selectedCategory)
-    }
-
-    // Search
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.designType.toLowerCase().includes(q)
-      )
-    }
+    let result = searchQuery.length > 0 ? searchResults : (selectedCategory !== 'all' ? categoryProducts : allProducts)
 
     // Size filter
     if (selectedSizes.length > 0) {
-      result = result.filter((p) => selectedSizes.some((s) => p.sizes.includes(s)))
+      result = result.filter((p) => selectedSizes.some((s) => p.sizes?.includes(s)))
     }
 
     // Color filter
     if (selectedColors.length > 0) {
-      result = result.filter((p) => selectedColors.some((c) => p.colors.includes(c)))
+      result = result.filter((p) => selectedColors.some((c) => p.colors?.includes(c)))
     }
 
     // Design type filter
     if (selectedDesigns.length > 0) {
-      result = result.filter((p) => selectedDesigns.includes(p.designType))
+      result = result.filter((p) => selectedDesigns.includes(p.designType || ''))
     }
 
     // Price filter
     result = result.filter((p) => {
-      const discountedPrice = p.price * (1 - p.discount / 100)
+      const price = parseFloat(p.price.toString())
+      const discountedPrice = price * (1 - (p.discount || 0) / 100)
       return discountedPrice >= priceRange[0] && discountedPrice <= priceRange[1]
     })
 
     // Sort
     switch (sortBy) {
       case 'price-low':
-        result.sort((a, b) => a.price - b.price)
+        result.sort((a, b) => parseFloat(a.price.toString()) - parseFloat(b.price.toString()))
         break
       case 'price-high':
-        result.sort((a, b) => b.price - a.price)
+        result.sort((a, b) => parseFloat(b.price.toString()) - parseFloat(a.price.toString()))
         break
       case 'discount':
-        result.sort((a, b) => b.discount - a.discount)
+        result.sort((a, b) => (b.discount || 0) - (a.discount || 0))
         break
       case 'name':
         result.sort((a, b) => a.name.localeCompare(b.name))
@@ -98,7 +95,7 @@ export default function Shop() {
     }
 
     return result
-  }, [selectedCategory, searchQuery, selectedSizes, selectedColors, selectedDesigns, priceRange, sortBy])
+  }, [selectedCategory, searchQuery, selectedSizes, selectedColors, selectedDesigns, priceRange, sortBy, allProducts, categoryProducts, searchResults])
 
   const toggleSize = (size: string) => {
     setSelectedSizes((prev) =>
@@ -133,6 +130,18 @@ export default function Shop() {
     priceRange[0] > 0 ||
     priceRange[1] < 150 ||
     searchQuery.length > 0
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-background pt-28 pb-20 transition-colors duration-300">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center py-20">
+            <div className="w-12 h-12 border-4 border-[#6B46C1]/20 border-t-[#6B46C1] rounded-full animate-spin" />
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   const getCategoryLabel = (catId: string) => {
     if (catId === 'all') return t.allProducts
@@ -182,18 +191,18 @@ export default function Shop() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          className="mb-6 sm:mb-10"
         >
-          <h1 className="text-[clamp(2.5rem,6vw,5rem)] font-bold tracking-[-0.03em] mb-4 text-foreground">
+          <h1 className="text-[clamp(2rem,5vw,4rem)] sm:text-[clamp(2.5rem,6vw,5rem)] font-bold tracking-[-0.03em] mb-3 sm:mb-4 text-foreground">
             {getCategoryLabel(selectedCategory)}
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-base sm:text-lg">
             {filteredProducts.length} {t.productsAvailable}
           </p>
         </motion.div>
 
         {/* Search & Controls */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8">
           <div className="relative flex-1">
             <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <input
@@ -201,20 +210,20 @@ export default function Shop() {
               placeholder={t.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full ps-12 pe-4 py-3 rounded-full bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#6B46C1] transition-colors"
+              className="w-full ps-12 pe-4 py-2.5 sm:py-3 rounded-full bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#6B46C1] transition-colors text-sm sm:text-base"
             />
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-full border transition-all ${
+              className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-full border transition-all text-sm sm:text-base ${
                 showFilters
                   ? 'bg-[#6B46C1] border-[#6B46C1] text-white'
                   : 'bg-card border-border text-foreground/60 hover:bg-foreground/5'
               }`}
             >
               <SlidersHorizontal className="w-4 h-4" />
-              {t.filters}
+              <span className="hidden sm:inline">{t.filters}</span>
               {hasActiveFilters && (
                 <span className="w-5 h-5 rounded-full bg-white dark:bg-black text-[#6B46C1] text-xs font-bold flex items-center justify-center">
                   !
@@ -224,13 +233,13 @@ export default function Shop() {
             <div className="flex items-center bg-card rounded-full border border-border overflow-hidden">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-3 ${viewMode === 'grid' ? 'bg-[#6B46C1] text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`p-2.5 sm:p-3 ${viewMode === 'grid' ? 'bg-[#6B46C1] text-white' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-3 ${viewMode === 'list' ? 'bg-[#6B46C1] text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`p-2.5 sm:p-3 ${viewMode === 'list' ? 'bg-[#6B46C1] text-white' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <LayoutList className="w-4 h-4" />
               </button>
@@ -239,13 +248,13 @@ export default function Shop() {
         </div>
 
         {/* Category Tabs */}
-        <div className="flex flex-wrap gap-2 mb-8">
+        <div className="flex flex-wrap gap-2 mb-6 sm:mb-8">
           {categories.map((cat) => (
             <Link
               key={cat.id}
               to={cat.id === 'all' ? '/shop' : `/shop/${cat.id}`}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all ${
+              className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
                 selectedCategory === cat.id
                   ? 'bg-[#6B46C1] text-white'
                   : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-foreground/5'
@@ -382,7 +391,7 @@ export default function Shop() {
         {/* Sort */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-muted-foreground text-sm">
-            {t.showingProducts.replace('{showing}', String(filteredProducts.length)).replace('{total}', String(demoProducts.length))}
+            {t.showingProducts.replace('{showing}', String(filteredProducts.length)).replace('{total}', String(allProducts.length))}
           </p>
           <div className="relative">
             <select
@@ -415,8 +424,8 @@ export default function Shop() {
           <div
             className={
               viewMode === 'grid'
-                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-                : 'space-y-4'
+                ? 'grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6'
+                : 'space-y-3 sm:space-y-4'
             }
           >
             {filteredProducts.map((product, i) => (
@@ -492,7 +501,7 @@ function ProductCard({
       transition={{ delay: index * 0.05 }}
     >
       <Link to={`/product/${product.id}`} className="group block">
-        <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-4">
+        <div className="relative aspect-[3/4] rounded-xl sm:rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-3 sm:mb-4">
           <img
             src={product.image}
             alt={product.name}
@@ -500,57 +509,57 @@ function ProductCard({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-          <div className="absolute top-3 start-3 flex flex-col gap-2">
+          <div className="absolute top-2 sm:top-3 start-2 sm:start-3 flex flex-col gap-1.5 sm:gap-2">
             {product.isNew && (
-              <span className="px-3 py-1 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase shadow-sm">
+              <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#6B46C1] text-white text-[10px] sm:text-xs font-bold uppercase shadow-sm">
                 {language === 'ar' ? 'جديد' : 'New'}
               </span>
             )}
             {product.discount > 0 && (
-              <span className="px-3 py-1 rounded-full bg-[#FF2A2A] text-white text-xs font-bold uppercase shadow-sm">
+              <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FF2A2A] text-white text-[10px] sm:text-xs font-bold uppercase shadow-sm">
                 -{product.discount}%
               </span>
             )}
           </div>
 
           {product.stock < 20 && (
-            <div className="absolute bottom-3 end-3">
-              <span className="px-3 py-1 rounded-full bg-black/60 text-white text-xs font-medium backdrop-blur-sm shadow-sm">
+            <div className="absolute bottom-2 sm:bottom-3 end-2 sm:end-3">
+              <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-black/60 text-white text-[10px] sm:text-xs font-medium backdrop-blur-sm shadow-sm">
                 {t.onlyLeft.replace('{count}', String(product.stock))}
               </span>
             </div>
           )}
 
-          <div className="absolute bottom-3 start-3 end-3 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
-            <div className="w-full py-3 rounded-full bg-white text-black text-center text-sm font-bold shadow-lg">
+          <div className="absolute bottom-2 sm:bottom-3 start-2 sm:start-3 end-2 sm:end-3 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
+            <div className="w-full py-2 sm:py-3 rounded-full bg-white text-black text-center text-xs sm:text-sm font-bold shadow-lg">
               {t.quickView}
             </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <h3 className="font-semibold text-foreground group-hover:text-[#6B46C1] transition-colors line-clamp-1">
+        <div className="space-y-1.5 sm:space-y-2">
+          <h3 className="font-semibold text-sm sm:text-base text-foreground group-hover:text-[#6B46C1] transition-colors line-clamp-1">
             {product.name}
           </h3>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-foreground">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="font-bold text-sm sm:text-base text-foreground">
                 ${(product.price * (1 - product.discount / 100)).toFixed(2)}
               </span>
               {product.discount > 0 && (
-                <span className="text-muted-foreground line-through text-sm">${product.price.toFixed(2)}</span>
+                <span className="text-muted-foreground line-through text-xs sm:text-sm">${product.price.toFixed(2)}</span>
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 sm:gap-1">
               {product.colors.slice(0, 3).map((color, ci) => (
                 <span
                   key={ci}
-                  className="w-3.5 h-3.5 rounded-full border border-border"
+                  className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border border-border"
                   style={{ backgroundColor: color }}
                 />
               ))}
               {product.colors.length > 3 && (
-                <span className="text-muted-foreground text-xs">+{product.colors.length - 3}</span>
+                <span className="text-muted-foreground text-[10px] sm:text-xs">+{product.colors.length - 3}</span>
               )}
             </div>
           </div>

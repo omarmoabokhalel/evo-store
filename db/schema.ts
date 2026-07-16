@@ -1,7 +1,6 @@
 import {
   mysqlTable,
   mysqlEnum,
-  serial,
   varchar,
   text,
   timestamp,
@@ -13,10 +12,11 @@ import {
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
+  id: int("id").primaryKey().autoincrement(),
   unionId: varchar("unionId", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 320 }),
+  password: varchar("password", { length: 255 }),
   avatar: text("avatar"),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -31,7 +31,7 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 export const products = mysqlTable("products", {
-  id: serial("id").primaryKey(),
+  id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
@@ -57,7 +57,7 @@ export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 
 export const orders = mysqlTable("orders", {
-  id: serial("id").primaryKey(),
+  id: int("id").primaryKey().autoincrement(),
   userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
   status: mysqlEnum("status", ["pending", "processing", "shipped", "delivered", "cancelled"]).default("pending").notNull(),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
@@ -86,7 +86,7 @@ export type Order = typeof orders.$inferSelect;
 export type InsertOrder = typeof orders.$inferInsert;
 
 export const cartItems = mysqlTable("cart_items", {
-  id: serial("id").primaryKey(),
+  id: int("id").primaryKey().autoincrement(),
   userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
   productId: bigint("productId", { mode: "number", unsigned: true }).notNull(),
   quantity: int("quantity").default(1).notNull(),
@@ -99,7 +99,7 @@ export type CartItem = typeof cartItems.$inferSelect;
 export type InsertCartItem = typeof cartItems.$inferInsert;
 
 export const wheelSpins = mysqlTable("wheel_spins", {
-  id: serial("id").primaryKey(),
+  id: int("id").primaryKey().autoincrement(),
   userId: bigint("userId", { mode: "number", unsigned: true }).notNull().unique(),
   discount: int("discount").notNull(),
   used: boolean("used").default(false),

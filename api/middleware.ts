@@ -9,6 +9,7 @@ const t = initTRPC.context<TrpcContext>().create({
 
 export const createRouter = t.router;
 export const publicQuery = t.procedure;
+export const publicMutation = t.procedure;
 
 const requireAuth = t.middleware(async (opts) => {
   const { ctx, next } = opts;

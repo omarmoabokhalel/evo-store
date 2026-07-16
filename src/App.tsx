@@ -19,7 +19,7 @@ const OrderTracking = lazy(() => import('@/pages/OrderTracking'))
 const Customizer = lazy(() => import('@/pages/Customizer'))
 const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'))
 const Login = lazy(() => import('@/pages/Login'))
-const MockLogin = lazy(() => import('@/pages/MockLogin'))
+const AdminLogin = lazy(() => import('@/pages/AdminLogin'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function LoadingFallback() {
@@ -59,7 +59,7 @@ export default function App() {
           <Route path="/customizer" element={<Customizer />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/mock-login" element={<MockLogin />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

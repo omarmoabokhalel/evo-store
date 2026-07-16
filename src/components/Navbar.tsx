@@ -79,12 +79,12 @@ export default function Navbar() {
         }`}
       >
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2 group">
+            <Link to="/" className="flex items-center gap-2 group shrink-0">
               <div className="flex items-center gap-2">
-                <img src="/images/logo.png" alt="Logo" className="h-6 w-6" />
-                <span className={`text-2xl font-bold tracking-[-0.05em] transition-colors ${isNavActive ? 'text-foreground' : 'text-white'}`}>EVO</span>
+                <img src="/images/logo.png" alt="Logo" className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className={`text-xl sm:text-2xl font-bold tracking-[-0.05em] transition-colors ${isNavActive ? 'text-foreground' : 'text-white'}`}>EVO</span>
               </div>
             </Link>
 
@@ -119,9 +119,30 @@ export default function Navbar() {
 
             {/* Actions */}
             <div className="flex items-center gap-1 sm:gap-2">
+              {/* Cart Button - Always visible on mobile */}
+              <button
+                onClick={() => {
+                  const event = new CustomEvent('toggle-cart')
+                  window.dispatchEvent(event)
+                }}
+                className={`p-2 rounded-full transition-all duration-300 relative ${
+                  isNavActive
+                    ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
+                }`}
+                title={t.cartTitle}
+              >
+                <ShoppingBag className="w-5 h-5" />
+                {getTotalItems() > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#6B46C1] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {getTotalItems()}
+                  </span>
+                )}
+              </button>
+
               <Link
                 to="/shop"
-                className={`hidden lg:inline-flex p-2 rounded-full transition-all duration-300 ${
+                className={`hidden md:inline-flex p-2 rounded-full transition-all duration-300 ${
                   isNavActive
                     ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -134,7 +155,7 @@ export default function Navbar() {
               {/* Language Switcher */}
               <button
                 onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
-                className={`hidden lg:inline-flex px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all duration-300 border ${
+                className={`hidden md:inline-flex px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all duration-300 border ${
                   isNavActive
                     ? 'text-foreground bg-foreground/5 hover:bg-foreground/10 border-border'
                     : 'text-white bg-white/10 hover:bg-white/20 border-white/10'
@@ -160,7 +181,7 @@ export default function Navbar() {
               {/* Wishlist */}
               <Link
                 to="/profile"
-                className={`hidden lg:inline-flex p-2 rounded-full transition-all duration-300 relative ${
+                className={`hidden md:inline-flex p-2 rounded-full transition-all duration-300 relative ${
                   isNavActive
                     ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -169,30 +190,9 @@ export default function Navbar() {
                 <Heart className="w-5 h-5" />
               </Link>
 
-              {/* Cart Button */}
-              <button
-                onClick={() => {
-                  const event = new CustomEvent('toggle-cart')
-                  window.dispatchEvent(event)
-                }}
-                className={`p-2 rounded-full transition-all duration-300 relative ${
-                  isNavActive
-                    ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-                title={t.cartTitle}
-              >
-                <ShoppingBag className="w-5 h-5" />
-                {getTotalItems() > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#6B46C1] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {getTotalItems()}
-                  </span>
-                )}
-              </button>
-
               {/* User / Profile menu */}
               {isLoggedIn ? (
-                <div className="relative hidden lg:block">
+                <div className="relative hidden md:block">
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                     className={`flex items-center gap-1.5 pl-1.5 pr-2 sm:pl-2 sm:pr-3 py-1 rounded-full transition-all duration-300 ${
@@ -208,7 +208,7 @@ export default function Navbar() {
                         {user?.name?.charAt(0) || 'U'}
                       </div>
                     )}
-                    <span className="text-xs sm:text-sm font-medium hidden md:block">{user?.name}</span>
+                    <span className="text-xs sm:text-sm font-medium hidden lg:block">{user?.name}</span>
                   </button>
 
                   <AnimatePresence>
@@ -266,14 +266,14 @@ export default function Navbar() {
               ) : (
                 <Link
                   to="/login"
-                  className={`hidden lg:flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
+                  className={`hidden md:flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
                     isNavActive
                       ? 'bg-foreground text-background hover:bg-foreground/90'
                       : 'bg-white text-black hover:bg-white/90'
                   }`}
                 >
                   <User className="w-4 h-4" />
-                  {t.login}
+                  <span className="hidden sm:inline">{t.login}</span>
                 </Link>
               )}
 
