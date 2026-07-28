@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useCartStore } from '@/stores/cartStore'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
+import { trpc } from '@/providers/trpc'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
@@ -10,12 +10,24 @@ import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
 export default function CartDrawer() {
   const { language } = useLanguageStore()
   const t = translations[language]
+  const { user } = useSupabaseAuth()
 
   const [isOpen, setIsOpen] = useState(false)
-  const { items, removeItem, updateQuantity, getTotalPrice, getDiscountedPrice, clearCart } = useCartStore()
-  const { wheelDiscount, wheelUsed } = useAuthStore()
-  const discount = wheelDiscount && !wheelUsed ? wheelDiscount : 0
-  const finalPrice = getDiscountedPrice() * (1 - discount / 100)
+  
+  // Fetch cart from Supabase
+  const { data: cartItems, isLoading } = trpc.cart.get.useQuery(undefined, {
+    enabled: !!user
+  })
+  
+  const clearCart = trpc.cart.clear.useMutation()
+  const updateQuantity = trpc.cart.update.useMutation()
+  const removeItem = trpc.cart.remove.useMutation()
+
+  const items = cartItems || []
+  const discount = 0 // TODO: Add wheel discount from Supabase
+  const totalPrice = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+  const discountedPrice = items.reduce((acc, item) => acc + (item.product.price * (1 - item.product.discount / 100) * item.quantity), 0)
+  const finalPrice = discountedPrice * (1 - discount / 100)
 
   useEffect(() => {
     const handler = () => setIsOpen(true)
@@ -104,14 +116,14 @@ export default function CartDrawer() {
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-2 bg-foreground/5 border border-border/50 rounded-full p-1">
                             <button
-                              onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                              onClick={() => updateQuantity.mutate({ id: item.id, quantity: item.quantity - 1 })}
                               className="w-7 h-7 rounded-full bg-background hover:bg-foreground/5 flex items-center justify-center text-foreground transition-colors"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
                             <span className="text-sm font-bold w-6 text-center text-foreground">{item.quantity}</span>
                             <button
-                              onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                              onClick={() => updateQuantity.mutate({ id: item.id, quantity: item.quantity + 1 })}
                               className="w-7 h-7 rounded-full bg-background hover:bg-foreground/5 flex items-center justify-center text-foreground transition-colors"
                             >
                               <Plus className="w-3 h-3" />
@@ -122,7 +134,7 @@ export default function CartDrawer() {
                               ${(item.product.price * (1 - item.product.discount / 100) * item.quantity).toFixed(2)}
                             </span>
                             <button
-                              onClick={() => removeItem(item.product.id)}
+                              onClick={() => removeItem.mutate(item.id)}
                               className="p-1.5 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all border border-transparent hover:border-red-500/20"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -142,18 +154,18 @@ export default function CartDrawer() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{t.subtotal}</span>
-                    <span className="font-semibold text-foreground">${getTotalPrice().toFixed(2)}</span>
+                    <span className="font-semibold text-foreground">${totalPrice.toFixed(2)}</span>
                   </div>
-                  {getDiscountedPrice() < getTotalPrice() && (
+                  {discountedPrice < totalPrice && (
                     <div className="flex justify-between text-sm">
                       <span className="text-[#6B46C1] font-bold">{t.productDiscount}</span>
-                      <span className="text-[#6B46C1] font-bold">-${(getTotalPrice() - getDiscountedPrice()).toFixed(2)}</span>
+                      <span className="text-[#6B46C1] font-bold">-${(totalPrice - discountedPrice).toFixed(2)}</span>
                     </div>
                   )}
                   {discount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-green-500 font-bold">{t.wheelDiscount.replace('{percent}', String(discount))}</span>
-                      <span className="text-green-500 font-bold">-${(getDiscountedPrice() * (discount / 100)).toFixed(2)}</span>
+                      <span className="text-green-500 font-bold">-${(discountedPrice * (discount / 100)).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
@@ -172,7 +184,7 @@ export default function CartDrawer() {
                 </Link>
 
                 <button
-                  onClick={clearCart}
+                  onClick={() => clearCart.mutate()}
                   className="w-full py-2 text-sm text-red-500/80 hover:text-red-500 font-bold hover:underline transition-colors"
                 >
                   {t.clearCart}

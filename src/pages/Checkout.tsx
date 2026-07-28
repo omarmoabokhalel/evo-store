@@ -12,8 +12,8 @@ import {
   Phone,
   User,
 } from 'lucide-react'
-import { useCartStore } from '@/stores/cartStore'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
+import { trpc } from '@/providers/trpc'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { toast } from 'sonner'
@@ -39,9 +39,15 @@ export default function Checkout() {
     };
     return colorMap[originalName] || originalName;
   };
-  const { items, getTotalPrice, getDiscountedPrice, clearCart } = useCartStore()
-  const { isLoggedIn, addOrder, wheelDiscount, wheelUsed, useWheelDiscount } = useAuthStore()
+  const { user } = useSupabaseAuth()
+  const { data: cartItems } = trpc.cart.get.useQuery(undefined, {
+    enabled: !!user
+  })
+  const createOrder = trpc.orders.create.useMutation()
+  const clearCart = trpc.cart.clear.useMutation()
   const navigate = useNavigate()
+
+  const items = cartItems || []
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -54,8 +60,8 @@ export default function Checkout() {
   })
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const discount = wheelDiscount && !wheelUsed ? wheelDiscount : 0
-  const subtotal = getDiscountedPrice()
+  const discount = 0 // TODO: Add wheel discount from Supabase
+  const subtotal = items.reduce((acc, item) => acc + (item.product.price * (1 - item.product.discount / 100) * item.quantity), 0)
   const discountAmount = subtotal * (discount / 100)
   const shipping = subtotal > 50 ? 0 : 5.99
   const total = subtotal - discountAmount + shipping
@@ -75,43 +81,29 @@ export default function Checkout() {
 
     setIsProcessing(true)
 
-    // Simulate order processing
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    try {
+      const order = await createOrder.mutateAsync({
+        total,
+        paymentMethod: formData.paymentMethod,
+        address: `${formData.address}, ${formData.city}, ${formData.postalCode}`,
+        phone: formData.phone,
+        items: items.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          size: item.size,
+          color: item.color,
+        })),
+      })
 
-    const orderId = `EVO-${Date.now().toString(36).toUpperCase()}`
+      await clearCart.mutateAsync()
 
-    const order = {
-      id: orderId,
-      status: 'pending' as const,
-      total,
-      paymentMethod: formData.paymentMethod,
-      address: `${formData.address}, ${formData.city}, ${formData.postalCode}`,
-      phone: formData.phone,
-      createdAt: new Date().toISOString(),
-      items: items.map((item) => ({
-        product: {
-          id: item.product.id,
-          name: item.product.name,
-          price: item.product.price,
-          image: item.product.image,
-        },
-        quantity: item.quantity,
-        size: item.size,
-        color: item.color,
-      })),
+      toast.success(language === 'ar' ? 'تم تأكيد طلبك بنجاح! 🎉' : 'Order placed successfully!')
+      navigate(`/track-order/${order.id}`)
+    } catch (error: any) {
+      toast.error(error.message || (language === 'ar' ? 'فشل إنشاء الطلب' : 'Failed to create order'))
+    } finally {
+      setIsProcessing(false)
     }
-
-    addOrder(order)
-
-    if (discount > 0) {
-      useWheelDiscount()
-    }
-
-    clearCart()
-    setIsProcessing(false)
-
-    toast.success(language === 'ar' ? 'تم تأكيد طلبك بنجاح! 🎉' : 'Order placed successfully!')
-    navigate(`/track-order/${orderId}`)
   }
 
   const updateField = (field: string, value: string) => {
@@ -353,14 +345,8 @@ export default function Checkout() {
               <div className="space-y-3 pt-4 border-t border-border">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{t.subtotal}</span>
-                  <span className="text-foreground">${getTotalPrice().toFixed(2)}</span>
+                  <span className="text-foreground">${subtotal.toFixed(2)}</span>
                 </div>
-                {subtotal < getTotalPrice() && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#6B46C1] font-bold">{t.productDiscount}</span>
-                    <span className="text-[#6B46C1] font-bold">-${(getTotalPrice() - subtotal).toFixed(2)}</span>
-                  </div>
-                )}
                 {discount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-green-500 font-bold">{t.wheelDiscount.replace('{percent}', String(discount))}</span>

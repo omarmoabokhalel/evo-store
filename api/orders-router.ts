@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
-import * as orderQueries from "./queries/orders";
+import * as orderQueries from "./queries/supabase-orders";
 
 export const ordersRouter = createRouter({
   // User queries
-  myOrders: authedQuery.query(({ ctx }) => orderQueries.getUserOrders(ctx.user.id)),
+  myOrders: authedQuery.query(({ ctx }) => orderQueries.getOrdersByUserId(ctx.user.id)),
   
-  byId: authedQuery.input(z.object({ id: z.number() })).query(({ input }) =>
+  byId: authedQuery.input(z.object({ id: z.string() })).query(({ input }) =>
     orderQueries.getOrderById(input.id)
   ),
 
@@ -20,7 +20,7 @@ export const ordersRouter = createRouter({
         phone: z.string(),
         items: z.array(
           z.object({
-            productId: z.number(),
+            productId: z.string(),
             name: z.string(),
             price: z.number(),
             quantity: z.number(),
@@ -34,7 +34,7 @@ export const ordersRouter = createRouter({
     .mutation(({ input, ctx }) =>
       orderQueries.createOrder({
         userId: ctx.user.id,
-        total: input.total.toString(),
+        total: input.total,
         paymentMethod: input.paymentMethod,
         address: input.address,
         phone: input.phone,
@@ -49,7 +49,7 @@ export const ordersRouter = createRouter({
   updateStatus: adminQuery
     .input(
       z.object({
-        id: z.number(),
+        id: z.string(),
         status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]),
       })
     )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
@@ -17,9 +17,13 @@ import {
   Mail,
   Send,
   LogOut,
+  Plus,
+  Edit,
+  Trash2,
+    X, 
 } from 'lucide-react'
-import { useAuthStore } from '@/stores/authStore'
-import { demoProducts } from '@/data/products'
+import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
+import { trpc } from '@/providers/trpc'
 import { toast } from 'sonner'
 import {
   BarChart,
@@ -84,7 +88,7 @@ const recentOrders = [
 ]
 
 export default function AdminDashboard() {
-  const { isLoggedIn, isAdmin, setLoggedOut } = useAuthStore()
+  const { user, isAdmin, signOut } = useSupabaseAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'analytics' | 'messages'>('overview')
   const [dateRange, setDateRange] = useState('7d')
@@ -95,11 +99,39 @@ export default function AdminDashboard() {
     { id: 3, from: 'Omar Khalil', text: 'Can I customize my own design?', time: '2026-05-21 18:45', reply: null },
   ])
 
-  // Calculate totals
-  const totalRevenue = salesData.reduce((acc, d) => acc + d.sales, 0)
-  const totalOrders = salesData.reduce((acc, d) => acc + d.orders, 0)
+  // Fetch real data from Supabase
+  const { data: products, isLoading: productsLoading } = trpc.products.list.useQuery()
+  const { data: orders, isLoading: ordersLoading } = trpc.orders.getAll.useQuery()
+  
+  // Product mutations
+  const createProduct = trpc.products.create.useMutation()
+  const updateProduct = trpc.products.update.useMutation()
+  const deleteProduct = trpc.products.delete.useMutation()
+  
+  // Product form state
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<any>(null)
+  const [productForm, setProductForm] = useState({
+    name: '',
+    description: '',
+    price: 0,
+    discount: 0,
+    category: 'men' as 'men' | 'women' | 'unisex',
+    type: 'tshirt' as 'tshirt' | 'hoodie',
+    image: '',
+    colors: ['#000000'],
+    sizes: ['S', 'M', 'L'],
+    stock: 100,
+    isNew: false,
+    isSpecial: false,
+    designType: '',
+  })
+
+  // Calculate totals from real data
+  const totalRevenue = orders?.reduce((acc, order) => acc + order.total, 0) || 0
+  const totalOrders = orders?.length || 0
+  const totalProducts = products?.length || 0
   const totalViews = viewsData.reduce((acc, d) => acc + d.views, 0)
-  const totalProducts = demoProducts.length
 
   const handleSendMessage = (msgId: number) => {
     if (!messageText.trim()) return
@@ -110,7 +142,77 @@ export default function AdminDashboard() {
     toast.success('Reply sent!')
   }
 
-  if (!isLoggedIn || !isAdmin) {
+  const handleAddProduct = () => {
+    setEditingProduct(null)
+    setProductForm({
+      name: '',
+      description: '',
+      price: 0,
+      discount: 0,
+      category: 'men',
+      type: 'tshirt',
+      image: '',
+      colors: ['#000000'],
+      sizes: ['S', 'M', 'L'],
+      stock: 100,
+      isNew: false,
+      isSpecial: false,
+      designType: '',
+    })
+    setShowProductModal(true)
+  }
+
+  const handleEditProduct = (product: any) => {
+    setEditingProduct(product)
+    setProductForm({
+      name: product.name,
+      description: product.description || '',
+      price: product.price,
+      discount: product.discount || 0,
+      category: product.category,
+      type: product.type,
+      image: product.image,
+      colors: product.colors || ['#000000'],
+      sizes: product.sizes || ['S', 'M', 'L'],
+      stock: product.stock || 100,
+      isNew: product.is_new || false,
+      isSpecial: product.is_special || false,
+      designType: product.design_type || '',
+    })
+    setShowProductModal(true)
+  }
+
+  const handleDeleteProduct = async (id: string) => {
+    if (confirm('Are you sure you want to delete this product?')) {
+      try {
+        await deleteProduct.mutateAsync({ id })
+        toast.success('Product deleted successfully')
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to delete product')
+      }
+    }
+  }
+
+  const handleSaveProduct = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      if (editingProduct) {
+        await updateProduct.mutateAsync({
+          id: editingProduct.id,
+          data: productForm,
+        })
+        toast.success('Product updated successfully')
+      } else {
+        await createProduct.mutateAsync(productForm)
+        toast.success('Product created successfully')
+      }
+      setShowProductModal(false)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save product')
+    }
+  }
+
+  if (!user || !isAdmin) {
     return (
       <main className="min-h-screen bg-[#050505] pt-28 flex items-center justify-center">
         <div className="text-center">
@@ -134,34 +236,232 @@ export default function AdminDashboard() {
   ]
 
   return (
-    <main className="min-h-screen bg-[#050505] pt-28 pb-20">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
-          <aside className="lg:w-64 shrink-0">
-            <div className="lg:sticky lg:top-28 space-y-2">
-              <div className="p-4 mb-6">
-                <h2 className="text-lg font-bold flex items-center gap-2">
-                  <LayoutDashboard className="w-5 h-5 text-[#6B46C1]" />
-                  Admin Panel
-                </h2>
-              </div>
-              {sidebarItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
-                    activeTab === item.id
-                      ? 'bg-[#6B46C1] text-white'
-                      : 'text-white/60 hover:bg-white/5 hover:text-white'
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.label}
-                </button>
-              ))}
+    <>
+      {/* Product Modal - Rendered at top level */}
+      {showProductModal && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 999999, 
+            backgroundColor: 'rgba(0, 0, 0, 0.9)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+        >
+          <div 
+            style={{ 
+              width: '100%', 
+              maxWidth: '672px', 
+              maxHeight: '90vh', 
+              overflowY: 'auto', 
+              backgroundColor: '#111827', 
+              border: '2px solid #8B5CF6', 
+              borderRadius: '16px', 
+              padding: '24px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}>
+                {editingProduct ? 'Edit Product' : 'Add New Product'}
+              </h2>
               <button
-                onClick={() => { setLoggedOut(); navigate('/'); }}
+                onClick={() => setShowProductModal(false)}
+                style={{ padding: '8px', borderRadius: '8px', backgroundColor: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}
+              >
+                <X style={{ width: '20px', height: '20px' }} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Product Name *</label>
+                  <input
+                    required
+                    type="text"
+                    value={productForm.name}
+                    onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                    placeholder="EVO Geometric Lines"
+                  />
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Description</label>
+                  <textarea
+                    value={productForm.description}
+                    onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none', resize: 'none', minHeight: '72px' }}
+                    placeholder="Product description..."
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Price *</label>
+                  <input
+                    required
+                    type="number"
+                    step="0.01"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: parseFloat(e.target.value) })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                    placeholder="49.99"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Discount (%)</label>
+                  <input
+                    type="number"
+                    value={productForm.discount}
+                    onChange={(e) => setProductForm({ ...productForm, discount: parseInt(e.target.value) })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Category *</label>
+                  <select
+                    required
+                    value={productForm.category}
+                    onChange={(e) => setProductForm({ ...productForm, category: e.target.value as any })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                  >
+                    <option value="men">Men</option>
+                    <option value="women">Women</option>
+                    <option value="unisex">Unisex</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Type *</label>
+                  <select
+                    required
+                    value={productForm.type}
+                    onChange={(e) => setProductForm({ ...productForm, type: e.target.value as any })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                  >
+                    <option value="tshirt">T-Shirt</option>
+                    <option value="hoodie">Hoodie</option>
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Image URL *</label>
+                  <input
+                    required
+                    type="url"
+                    value={productForm.image}
+                    onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Stock *</label>
+                  <input
+                    required
+                    type="number"
+                    value={productForm.stock}
+                    onChange={(e) => setProductForm({ ...productForm, stock: parseInt(e.target.value) })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                    placeholder="100"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#D1D5DB', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={productForm.isNew}
+                      onChange={(e) => setProductForm({ ...productForm, isNew: e.target.checked })}
+                      style={{ width: '16px', height: '16px', borderRadius: '4px' }}
+                    />
+                    New
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#D1D5DB', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={productForm.isSpecial}
+                      onChange={(e) => setProductForm({ ...productForm, isSpecial: e.target.checked })}
+                      style={{ width: '16px', height: '16px', borderRadius: '4px' }}
+                    />
+                    Special
+                  </label>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Design Type</label>
+                  <input
+                    type="text"
+                    value={productForm.designType}
+                    onChange={(e) => setProductForm({ ...productForm, designType: e.target.value })}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                    placeholder="geometric, abstract, etc."
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowProductModal(false)}
+                  style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', backgroundColor: '#374151', border: '1px solid #4B5563', color: 'white', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', backgroundColor: '#8B5CF6', border: 'none', color: 'white', cursor: 'pointer' }}
+                >
+                  {editingProduct ? 'Update Product' : 'Create Product'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <main className="min-h-screen bg-[#050505] pt-28 pb-20">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Sidebar */}
+            <aside className="lg:w-64 shrink-0">
+              <div className="lg:sticky lg:top-28 space-y-2">
+                <div className="p-4 mb-6">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    <LayoutDashboard className="w-5 h-5 text-[#6B46C1]" />
+                    Admin Panel
+                  </h2>
+                </div>
+                {sidebarItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
+                      activeTab === item.id
+                        ? 'bg-[#6B46C1] text-white'
+                        : 'text-white/60 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.label}
+                  </button>
+                ))}
+                <button
+                  onClick={async () => {
+                    await signOut();
+                    navigate('/');
+                  }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-red-400 hover:bg-red-500/10 transition-all mt-8"
               >
                 <LogOut className="w-5 h-5" />
@@ -279,35 +579,41 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Order ID</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Customer</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Total</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recentOrders.map((order) => (
-                          <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="py-3 px-4 font-medium">{order.id}</td>
-                            <td className="py-3 px-4">{order.customer}</td>
-                            <td className="py-3 px-4 font-bold">${order.total.toFixed(2)}</td>
-                            <td className="py-3 px-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                                order.status === 'delivered' ? 'bg-green-400/10 text-green-400' :
-                                order.status === 'shipped' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
-                                order.status === 'processing' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' :
-                                'bg-[#6B46C1]/10 text-[#6B46C1]'
-                              }`}>
-                                {order.status}
-                              </span>
-                            </td>
+                    {ordersLoading ? (
+                      <p className="text-white/40 text-center py-4">Loading orders...</p>
+                    ) : orders && orders.length > 0 ? (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className="text-left py-3 px-4 font-medium text-white/40">Order ID</th>
+                            <th className="text-left py-3 px-4 font-medium text-white/40">Customer</th>
+                            <th className="text-left py-3 px-4 font-medium text-white/40">Total</th>
+                            <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {orders.slice(0, 5).map((order) => (
+                            <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td className="py-3 px-4 font-medium">{order.id.slice(0, 8)}</td>
+                              <td className="py-3 px-4">{order.address}</td>
+                              <td className="py-3 px-4 font-bold">${order.total.toFixed(2)}</td>
+                              <td className="py-3 px-4">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                                  order.status === 'delivered' ? 'bg-green-400/10 text-green-400' :
+                                  order.status === 'shipped' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
+                                  order.status === 'processing' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' :
+                                  'bg-[#6B46C1]/10 text-[#6B46C1]'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="text-white/40 text-center py-4">No orders yet</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -325,58 +631,84 @@ export default function AdminDashboard() {
                       className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-[#6B46C1]"
                     />
                   </div>
-                  <button className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 transition-all">
-                    <Filter className="w-4 h-4" />
-                    Filter
+                  <button
+                    onClick={handleAddProduct}
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#6B46C1] text-white hover:bg-[#6B46C1]/90 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Product
                   </button>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Product</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Price</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Stock</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Category</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {demoProducts.map((product) => (
-                        <tr key={product.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <img src={product.image} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
-                              <div>
-                                <p className="font-medium">{product.name}</p>
-                                <p className="text-xs text-white/40">{product.type}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="font-bold">${product.price.toFixed(2)}</span>
-                            {product.discount > 0 && (
-                              <span className="ml-2 text-xs text-[#FF2A2A]">-{product.discount}%</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className={`${product.stock < 20 ? 'text-[#FBBF24]' : 'text-white/60'}`}>
-                              {product.stock}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 capitalize">{product.category}</td>
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              product.stock > 0 ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'
-                            }`}>
-                              {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                            </span>
-                          </td>
+                  {productsLoading ? (
+                    <p className="text-white/40 text-center py-4">Loading products...</p>
+                  ) : products && products.length > 0 ? (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Product</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Price</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Stock</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Category</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {products.map((product) => (
+                          <tr key={product.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <img src={product.image} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                                <div>
+                                  <p className="font-medium">{product.name}</p>
+                                  <p className="text-xs text-white/40">{product.type}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-bold">${product.price.toFixed(2)}</span>
+                              {product.discount > 0 && (
+                                <span className="ml-2 text-xs text-[#FF2A2A]">-{product.discount}%</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`${product.stock < 20 ? 'text-[#FBBF24]' : 'text-white/60'}`}>
+                                {product.stock}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 capitalize">{product.category}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                product.stock > 0 ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'
+                              }`}>
+                                {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleEditProduct(product)}
+                                  className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                  className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/60 hover:text-red-500 transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="text-white/40 text-center py-4">No products yet</p>
+                  )}
                 </div>
               </div>
             )}
@@ -386,10 +718,10 @@ export default function AdminDashboard() {
               <div className="space-y-6">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
-                    { label: 'Pending', value: 12, color: '#FBBF24' },
-                    { label: 'Processing', value: 8, color: '#6B46C1' },
-                    { label: 'Shipped', value: 24, color: '#3B82F6' },
-                    { label: 'Delivered', value: 156, color: '#10B981' },
+                    { label: 'Pending', value: orders?.filter(o => o.status === 'pending').length || 0, color: '#FBBF24' },
+                    { label: 'Processing', value: orders?.filter(o => o.status === 'processing').length || 0, color: '#6B46C1' },
+                    { label: 'Shipped', value: orders?.filter(o => o.status === 'shipped').length || 0, color: '#3B82F6' },
+                    { label: 'Delivered', value: orders?.filter(o => o.status === 'delivered').length || 0, color: '#10B981' },
                   ].map((stat) => (
                     <div key={stat.label} className="p-5 rounded-2xl bg-white/[0.02] border border-white/5">
                       <p className="text-3xl font-bold" style={{ color: stat.color }}>{stat.value}</p>
@@ -399,37 +731,43 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Order ID</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Customer</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Total</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
-                        <th className="text-left py-3 px-4 font-medium text-white/40">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentOrders.map((order) => (
-                        <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4 font-medium">{order.id}</td>
-                          <td className="py-3 px-4">{order.customer}</td>
-                          <td className="py-3 px-4 font-bold">${order.total.toFixed(2)}</td>
-                          <td className="py-3 px-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                              order.status === 'delivered' ? 'bg-green-400/10 text-green-400' :
-                              order.status === 'shipped' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
-                              order.status === 'processing' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' :
-                              'bg-[#6B46C1]/10 text-[#6B46C1]'
-                            }`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-white/40">{order.date}</td>
+                  {ordersLoading ? (
+                    <p className="text-white/40 text-center py-4">Loading orders...</p>
+                  ) : orders && orders.length > 0 ? (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Order ID</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Customer</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Total</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Date</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {orders.map((order) => (
+                          <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="py-3 px-4 font-medium">{order.id.slice(0, 8)}</td>
+                            <td className="py-3 px-4">{order.address}</td>
+                            <td className="py-3 px-4 font-bold">${order.total.toFixed(2)}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                                order.status === 'delivered' ? 'bg-green-400/10 text-green-400' :
+                                order.status === 'shipped' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
+                                order.status === 'processing' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' :
+                                'bg-[#6B46C1]/10 text-[#6B46C1]'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-white/40">{new Date(order.createdAt).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="text-white/40 text-center py-4">No orders yet</p>
+                  )}
                 </div>
               </div>
             )}
@@ -571,6 +909,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
-    </main>
+      </main>
+    </>
   )
 }

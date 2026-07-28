@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { useThemeStore } from '@/stores/themeStore'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { useCartStore } from '@/stores/cartStore'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
@@ -22,7 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 export default function Navbar() {
   const { isDark, toggle } = useThemeStore()
-  const { isLoggedIn, isAdmin, user, setLoggedOut } = useAuthStore()
+  const { user, isAdmin, signOut } = useSupabaseAuth()
   const { getTotalItems } = useCartStore()
   const { language, setLanguage } = useLanguageStore()
   const t = translations[language]
@@ -191,7 +191,7 @@ export default function Navbar() {
               </Link>
 
               {/* User / Profile menu */}
-              {isLoggedIn ? (
+              {!!user ? (
                 <div className="relative hidden md:block">
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -201,14 +201,14 @@ export default function Navbar() {
                         : 'bg-white/10 hover:bg-white/20 text-white'
                     }`}
                   >
-                    {user?.avatar ? (
-                      <img src={user.avatar} alt="" className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover" />
+                    {user.user_metadata?.avatar ? (
+                      <img src={user.user_metadata.avatar} alt="" className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover" />
                     ) : (
                       <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-[#6B46C1] to-[#3B82F6] flex items-center justify-center text-xs font-bold text-white">
-                        {user?.name?.charAt(0) || 'U'}
+                        {user.user_metadata?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                       </div>
                     )}
-                    <span className="text-xs sm:text-sm font-medium hidden lg:block">{user?.name}</span>
+                    <span className="text-xs sm:text-sm font-medium hidden lg:block">{user.user_metadata?.name || user.email?.split('@')[0]}</span>
                   </button>
 
                   <AnimatePresence>
@@ -221,8 +221,8 @@ export default function Navbar() {
                         className="absolute end-0 top-full mt-2 w-56 bg-card border border-border shadow-2xl rounded-2xl overflow-hidden z-[60]"
                       >
                         <div className="p-4 border-b border-border">
-                          <p className="font-semibold text-sm text-foreground">{user?.name}</p>
-                          <p className="text-xs text-muted-foreground">{user?.email}</p>
+                          <p className="font-semibold text-sm text-foreground">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
+                          <p className="text-xs text-muted-foreground">{user.email}</p>
                         </div>
                         <div className="p-2">
                           <Link
@@ -249,8 +249,8 @@ export default function Navbar() {
                             {t.navAIShowroom}
                           </Link>
                           <button
-                            onClick={() => {
-                              setLoggedOut()
+                            onClick={async () => {
+                              await signOut()
                               setIsProfileOpen(false)
                             }}
                             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-red-500 hover:text-red-400 hover:bg-red-500/5 transition-all"
@@ -310,19 +310,19 @@ export default function Navbar() {
               transition={{ delay: 0.05 }}
               className="w-full bg-card border border-border p-5 rounded-3xl flex flex-col gap-4 shadow-sm"
             >
-              {isLoggedIn ? (
+              {!!user ? (
                 <>
                   <div className="flex items-center gap-3 pb-3 border-b border-border">
-                    {user?.avatar ? (
-                      <img src={user.avatar} alt="" className="w-12 h-12 rounded-full object-cover border border-border" />
+                    {user.user_metadata?.avatar ? (
+                      <img src={user.user_metadata.avatar} alt="" className="w-12 h-12 rounded-full object-cover border border-border" />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#6B46C1] to-[#3B82F6] flex items-center justify-center text-base font-bold text-white shadow-sm">
-                        {user?.name?.charAt(0) || 'U'}
+                        {user.user_metadata?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="font-bold text-base text-foreground truncate">{user?.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                      <p className="font-bold text-base text-foreground truncate">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -345,8 +345,8 @@ export default function Navbar() {
                       </Link>
                     )}
                     <button
-                      onClick={() => {
-                        setLoggedOut()
+                      onClick={async () => {
+                        await signOut()
                         setIsMobileMenuOpen(false)
                       }}
                       className="col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-bold border border-red-500/20 text-red-500 hover:bg-red-500/5 transition-all"

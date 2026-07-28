@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router'
 import { lazy, Suspense, useEffect } from 'react'
 import { useThemeStore } from '@/stores/themeStore'
 import { useLanguageStore } from '@/stores/languageStore'
+import { SupabaseAuthProvider } from '@/providers/SupabaseAuthProvider'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import CartDrawer from '@/components/CartDrawer'
@@ -44,29 +45,31 @@ export default function App() {
   }, [language])
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 bg-background text-foreground`}>
-      <ScrollToTop />
-      <Navbar />
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/shop/:category" element={<Shop />} />
-          <Route path="/product/:id" element={<ProductDetail />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/track-order/:orderId" element={<OrderTracking />} />
-          <Route path="/customizer" element={<Customizer />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/admin-login" element={<AdminLogin />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Suspense>
-      <Footer />
-      <CartDrawer />
-      <WheelOfFortune />
-      <Toaster position="top-center" />
-    </div>
+    <SupabaseAuthProvider>
+      <div className={`min-h-screen transition-colors duration-300 bg-background text-foreground`}>
+        <ScrollToTop />
+        <Navbar />
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/shop/:category" element={<Shop />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/track-order/:orderId" element={<OrderTracking />} />
+            <Route path="/customizer" element={<Customizer />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+        <Footer />
+        <CartDrawer />
+        <WheelOfFortune />
+        <Toaster position="top-center" />
+      </div>
+    </SupabaseAuthProvider>
   )
 }

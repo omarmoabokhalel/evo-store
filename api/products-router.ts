@@ -1,36 +1,18 @@
 import { z } from "zod";
 import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware";
-import * as productQueries from "./queries/products";
+import * as productQueries from "./queries/supabase-products";
 
 export const productsRouter = createRouter({
   // Public queries
   list: publicQuery.query(() => productQueries.getAllProducts()),
-  byId: publicQuery.input(z.object({ id: z.number() })).query(({ input }) =>
+  byId: publicQuery.input(z.object({ id: z.string() })).query(({ input }) =>
     productQueries.getProductById(input.id)
   ),
   byCategory: publicQuery.input(z.object({ category: z.string() })).query(({ input }) =>
     productQueries.getProductsByCategory(input.category)
   ),
-  byType: publicQuery.input(z.object({ type: z.string() })).query(({ input }) =>
-    productQueries.getProductsByType(input.type)
-  ),
-  search: publicQuery.input(z.object({ query: z.string() })).query(({ input }) =>
-    productQueries.searchProducts(input.query)
-  ),
   new: publicQuery.query(() => productQueries.getNewProducts()),
   special: publicQuery.query(() => productQueries.getSpecialProducts()),
-  filter: publicQuery
-    .input(
-      z.object({
-        category: z.string().optional(),
-        type: z.string().optional(),
-        minPrice: z.number().optional(),
-        maxPrice: z.number().optional(),
-        isNew: z.boolean().optional(),
-        isSpecial: z.boolean().optional(),
-      })
-    )
-    .query(({ input }) => productQueries.filterProducts(input)),
 
   // Admin mutations
   create: adminQuery
@@ -57,7 +39,7 @@ export const productsRouter = createRouter({
   update: adminQuery
     .input(
       z.object({
-        id: z.number(),
+        id: z.string(),
         data: z.object({
           name: z.string().optional(),
           description: z.string().optional(),
@@ -78,7 +60,7 @@ export const productsRouter = createRouter({
     )
     .mutation(({ input }) => productQueries.updateProduct(input.id, input.data)),
 
-  delete: adminQuery.input(z.object({ id: z.number() })).mutation(({ input }) =>
+  delete: adminQuery.input(z.object({ id: z.string() })).mutation(({ input }) =>
     productQueries.deleteProduct(input.id)
   ),
 });

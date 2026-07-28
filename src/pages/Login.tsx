@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { KeyRound, Mail, Lock, User, ArrowRight, Shield } from "lucide-react";
-import { useAuthStore } from "@/stores/authStore";
+import { useSupabaseAuth } from "@/providers/SupabaseAuthProvider";
 import { toast } from "sonner";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setLoggedIn, setAdmin } = useAuthStore();
+  const { signIn, signUp } = useSupabaseAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -21,52 +21,18 @@ export default function Login() {
 
     try {
       if (isLogin) {
-        const response = await fetch("/api/trpc/auth.login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            json: { email: formData.email, password: formData.password },
-          }),
-          credentials: "include",
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-          throw new Error(data.error.message || "Login failed");
-        }
-
-        if (data.success) {
-          const user = data.user;
-          setLoggedIn(user);
-          if (user.role === "admin") {
-            setAdmin(true);
-          }
-          toast.success("Welcome back!");
-          navigate("/");
-        }
+        console.log('Attempting login with:', formData.email);
+        await signIn(formData.email, formData.password);
+        toast.success("Welcome back!");
+        navigate("/");
       } else {
-        const response = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: formData.name, email: formData.email, password: formData.password }),
-          credentials: "include",
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-          throw new Error(data.error.message || "Registration failed");
-        }
-
-        if (data.success) {
-          const user = data.user;
-          setLoggedIn(user);
-          toast.success("Account created successfully!");
-          navigate("/");
-        }
+        console.log('Attempting registration with:', formData.email);
+        await signUp(formData.email, formData.password, formData.name);
+        toast.success("Account created successfully!");
+        navigate("/");
       }
     } catch (error: any) {
+      console.error('Auth error:', error);
       toast.error(error.message || (isLogin ? "Login failed" : "Registration failed"));
     } finally {
       setIsLoading(false);

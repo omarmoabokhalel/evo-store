@@ -2,11 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Shield, Mail, Lock, ArrowRight, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { useAuthStore } from "@/stores/authStore";
+import { useSupabaseAuth } from "@/providers/SupabaseAuthProvider";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const { setLoggedIn, setAdmin } = useAuthStore();
+  const { signIn, isAdmin } = useSupabaseAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -19,40 +19,33 @@ export default function AdminLogin() {
     setIsLoading(true);
 
     try {
+      console.log('Admin login attempt:', formData.email);
+      
       // Check admin code (hardcoded for security)
-      if (formData.adminCode !== "EVO-ADMIN-2024") {
+      if (formData.adminCode !== "EVO") {
         toast.error("Invalid admin code");
         setIsLoading(false);
         return;
       }
 
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email, password: formData.password }),
-        credentials: "include",
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error.message || "Admin login failed");
+      await signIn(formData.email, formData.password);
+      
+      console.log('Sign in successful, checking admin role...');
+      
+      // Wait a moment for the auth state to update
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Check if user has admin role
+      if (!isAdmin) {
+        toast.error("This account does not have admin privileges");
+        setIsLoading(false);
+        return;
       }
 
-      if (data.success) {
-        const user = data.user;
-        if (user.role !== "admin") {
-          toast.error("This account does not have admin privileges");
-          setIsLoading(false);
-          return;
-        }
-
-        setLoggedIn(user);
-        setAdmin(true);
-        toast.success("Admin access granted");
-        navigate("/admin");
-      }
+      toast.success("Admin access granted");
+      navigate("/admin");
     } catch (error: any) {
+      console.error('Admin login error:', error);
       toast.error(error.message || "Admin login failed");
     } finally {
       setIsLoading(false);

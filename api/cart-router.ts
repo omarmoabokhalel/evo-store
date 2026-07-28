@@ -1,21 +1,21 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
-import * as cartQueries from "./queries/cart";
+import * as cartQueries from "./queries/supabase-cart";
 
 export const cartRouter = createRouter({
-  get: authedQuery.query(({ ctx }) => cartQueries.getUserCart(ctx.user.id)),
+  get: authedQuery.query(({ ctx }) => cartQueries.getCartItems(ctx.user.id)),
 
   add: authedQuery
     .input(
       z.object({
-        productId: z.number(),
+        productId: z.string(),
         quantity: z.number().min(1),
         size: z.string(),
         color: z.string(),
       })
     )
     .mutation(({ input, ctx }) =>
-      cartQueries.addToCart({
+      cartQueries.addCartItem({
         userId: ctx.user.id,
         productId: input.productId,
         quantity: input.quantity,
@@ -27,15 +27,15 @@ export const cartRouter = createRouter({
   update: authedQuery
     .input(
       z.object({
-        id: z.number(),
+        id: z.string(),
         quantity: z.number(),
       })
     )
     .mutation(({ input }) => cartQueries.updateCartItem(input.id, input.quantity)),
 
-  remove: authedQuery.input(z.object({ id: z.number() })).mutation(({ input }) =>
-    cartQueries.removeFromCart(input.id)
+  remove: authedQuery.input(z.object({ id: z.string() })).mutation(({ input }) =>
+    cartQueries.removeCartItem(input.id)
   ),
 
-  clear: authedQuery.mutation(({ ctx }) => cartQueries.clearUserCart(ctx.user.id)),
+  clear: authedQuery.mutation(({ ctx }) => cartQueries.clearCart(ctx.user.id)),
 });

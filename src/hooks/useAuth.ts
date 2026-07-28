@@ -1,4 +1,4 @@
-import { trpc } from "@/providers/trpc";
+import { useSupabaseAuth } from "@/providers/SupabaseAuthProvider";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
@@ -13,46 +13,37 @@ export function useAuth(options?: UseAuthOptions) {
     options ?? {};
 
   const navigate = useNavigate();
+  const { user, loading, signOut, isAdmin } = useSupabaseAuth();
 
-  const utils = trpc.useUtils();
-
-  const {
-    data: user,
-    isLoading,
-    error,
-    refetch,
-  } = trpc.auth.me.useQuery(undefined, {
-    staleTime: 1000 * 60 * 5,
-    retry: false,
-  });
-
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: async () => {
-      await utils.invalidate();
-      navigate(redirectPath);
-    },
-  });
-
-  const logout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
+  const logout = useCallback(async () => {
+    await signOut();
+    navigate(redirectPath);
+  }, [navigate, redirectPath]);
 
   useEffect(() => {
-    if (redirectOnUnauthenticated && !isLoading && !user) {
+    if (redirectOnUnauthenticated && !loading && !user) {
       const currentPath = window.location.pathname;
       if (currentPath !== redirectPath) {
         navigate(redirectPath);
       }
     }
-  }, [redirectOnUnauthenticated, isLoading, user, navigate, redirectPath]);
+  }, [redirectOnUnauthenticated, loading, user, navigate, redirectPath]);
 
   return useMemo(
     () => ({
-      user: user ?? null,
+      user: user ? {
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.name || 'User',
+        role: isAdmin ? 'admin' : 'user',
+        avatar: user.user_metadata?.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.email}`,
+      } : null,
       isAuthenticated: !!user,
-      isLoading: isLoading || logoutMutation.isPending,
-      error,
+      isLoading: loading,
+      error: null,
       logout,
-      refresh: refetch,
+      refresh: async () => {},
     }),
-    [user, isLoading, logoutMutation.isPending, error, logout, refetch],
+    [user, loading, logout, isAdmin],
   );
 }

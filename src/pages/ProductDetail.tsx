@@ -20,22 +20,21 @@ import {
 } from 'lucide-react'
 import { sizeChart, colorOptions } from '@/data/products'
 import type { Product } from '@/data/products'
-import { useCartStore } from '@/stores/cartStore'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
+import { trpc } from '@/providers/trpc'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { toast } from 'sonner'
-import { trpc } from '@/providers/trpc'
 
 export default function ProductDetail() {
   const { language } = useLanguageStore()
   const t = translations[language]
+  const { user } = useSupabaseAuth()
 
   const { id } = useParams<{ id: string }>()
   const productId = Number(id)
   const { data: product, isLoading } = trpc.products.byId.useQuery({ id: productId })
-  const { addItem } = useCartStore()
-  const { addViewed } = useAuthStore()
+  const addToCart = trpc.cart.add.useMutation()
 
   const [selectedColor, setSelectedColor] = useState('')
   const [selectedSize, setSelectedSize] = useState('')
@@ -45,14 +44,13 @@ export default function ProductDetail() {
   const [showAITryOn, setShowAITryOn] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
 
-  // Track viewed
+  // Set default selections
   useEffect(() => {
     if (product) {
       setSelectedColor(product.colors?.[0] || '')
       setSelectedSize(product.sizes?.[Math.floor((product.sizes?.length || 0) / 2)] || '')
-      addViewed({ id: product.id, name: product.name, image: product.image, viewedAt: new Date().toISOString() })
     }
-  }, [product, addViewed])
+  }, [product])
 
   if (isLoading) {
     return (
@@ -82,13 +80,28 @@ export default function ProductDetail() {
   )
   const filteredRelatedProducts = relatedProducts.filter((p) => p.id !== product.id).slice(0, 4)
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedSize || !selectedColor) {
       toast.error(language === 'ar' ? 'من فضلك اختار المقاس واللون أولاً!' : 'Please select size and color')
       return
     }
-    addItem(product, selectedSize, selectedColor)
-    toast.success(language === 'ar' ? 'تمت الإضافة للشنطة بنجاح! 🛍️' : 'Added to cart successfully!')
+    
+    if (!user) {
+      toast.error(language === 'ar' ? 'يرجى تسجيل الدخول أولاً' : 'Please login first')
+      return
+    }
+
+    try {
+      await addToCart.mutateAsync({
+        productId: product.id,
+        quantity,
+        size: selectedSize,
+        color: selectedColor,
+      })
+      toast.success(language === 'ar' ? 'تمت الإضافة للشنطة بنجاح! 🛍️' : 'Added to cart successfully!')
+    } catch (error: any) {
+      toast.error(error.message || (language === 'ar' ? 'فشل الإضافة للشنطة' : 'Failed to add to cart'))
+    }
   }
 
   const handleShare = async () => {
