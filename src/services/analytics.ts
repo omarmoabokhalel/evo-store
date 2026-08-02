@@ -7,17 +7,26 @@ export async function trackPageView(data: {
   ipAddress?: string
   userAgent?: string
 }) {
-  const { error } = await supabase
-    .from('page_views')
-    .insert({
-      page: data.page,
-      user_id: data.userId || null,
-      session_id: data.sessionId || null,
-      ip_address: data.ipAddress || null,
-      user_agent: data.userAgent || null,
-    })
+  try {
+    const { error } = await supabase
+      .from('page_views')
+      .insert({
+        page: data.page,
+        user_id: data.userId || null,
+        session_id: data.sessionId || null,
+        ip_address: data.ipAddress || null,
+        user_agent: data.userAgent || null,
+      })
 
-  if (error) {
+    if (error) {
+      // Silently ignore RLS errors - analytics shouldn't break the app
+      if (error.code === '42501') {
+        console.log('Analytics tracking disabled by RLS policy')
+        return
+      }
+      console.error('Error tracking page view:', error)
+    }
+  } catch (error) {
     console.error('Error tracking page view:', error)
   }
 }
