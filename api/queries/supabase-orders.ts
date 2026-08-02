@@ -3,12 +3,14 @@ import { supabase } from '../lib/supabase'
 export async function createOrder(data: {
   userId: string
   total: number
-  paymentMethod: 'cod' | 'online'
+  paymentMethod: 'cod' | 'instapay' | 'vodafone'
   address: string
   phone: string
   items: any[]
 }) {
-  const { error } = await supabase
+  console.log('Creating order with payment method:', data.paymentMethod)
+
+  const { data: order, error } = await supabase
     .from('orders')
     .insert({
       user_id: data.userId,
@@ -19,8 +21,14 @@ export async function createOrder(data: {
       items: data.items,
       status: 'pending',
     })
-  
-  if (error) throw error
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating order:', error)
+    throw error
+  }
+  return order
 }
 
 export async function getOrdersByUserId(userId: string) {
@@ -48,13 +56,15 @@ export async function getOrderById(id: string) {
 export async function getAllOrders() {
   const { data, error } = await supabase
     .from('orders')
-    .select(`
-      *,
-      profiles:user_id (name, email)
-    `)
+    .select('*')
     .order('created_at', { ascending: false })
-  
-  if (error) throw error
+
+  if (error) {
+    console.error('Error fetching all orders:', error)
+    throw error
+  }
+
+  console.log('All orders fetched:', data)
   return data
 }
 
@@ -66,6 +76,17 @@ export async function updateOrderStatus(id: string, status: 'pending' | 'process
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-  
+
+  if (error) throw error
+}
+
+export async function uploadReceipt(orderId: string, receiptImage: string) {
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      receipt_image: receiptImage,
+    })
+    .eq('id', orderId)
+
   if (error) throw error
 }

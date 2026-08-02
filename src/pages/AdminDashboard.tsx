@@ -20,7 +20,7 @@ import {
   Plus,
   Edit,
   Trash2,
-    X, 
+  X,
 } from 'lucide-react'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { trpc } from '@/providers/trpc'
@@ -45,48 +45,6 @@ import {
 const COLORS = ['#6B46C1', '#3B82F6', '#FF2A2A', '#FBBF24', '#10B981']
 
 // Demo analytics data
-const salesData = [
-  { name: 'Mon', sales: 4200, orders: 12 },
-  { name: 'Tue', sales: 5800, orders: 18 },
-  { name: 'Wed', sales: 3900, orders: 10 },
-  { name: 'Thu', sales: 7200, orders: 22 },
-  { name: 'Fri', sales: 9100, orders: 28 },
-  { name: 'Sat', sales: 11500, orders: 35 },
-  { name: 'Sun', sales: 8400, orders: 24 },
-]
-
-const viewsData = [
-  { name: 'Mon', views: 320, productViews: 180 },
-  { name: 'Tue', views: 450, productViews: 240 },
-  { name: 'Wed', views: 380, productViews: 200 },
-  { name: 'Thu', views: 520, productViews: 310 },
-  { name: 'Fri', views: 680, productViews: 420 },
-  { name: 'Sat', views: 890, productViews: 560 },
-  { name: 'Sun', views: 720, productViews: 480 },
-]
-
-const categoryData = [
-  { name: 'Men', value: 45 },
-  { name: 'Women', value: 35 },
-  { name: 'Unisex', value: 20 },
-]
-
-const topProducts = [
-  { name: 'EVO Geometric Lines', views: 1240, sales: 89, revenue: 4449 },
-  { name: 'EVO Cyberpunk Hoodie', views: 980, sales: 67, revenue: 6026 },
-  { name: 'EVO Red Brush Stroke', views: 850, sales: 54, revenue: 2969 },
-  { name: 'EVO Zen Wave Tee', views: 720, sales: 45, revenue: 2024 },
-  { name: 'EVO Sacred Geometry', views: 650, sales: 38, revenue: 2279 },
-]
-
-const recentOrders = [
-  { id: 'EVO-A1B2C3', customer: 'Ahmed Hassan', total: 89.99, status: 'delivered', date: '2026-05-22' },
-  { id: 'EVO-D4E5F6', customer: 'Sara Mohamed', total: 144.97, status: 'shipped', date: '2026-05-21' },
-  { id: 'EVO-G7H8I9', customer: 'Omar Khalil', total: 54.99, status: 'processing', date: '2026-05-21' },
-  { id: 'EVO-J1K2L3', customer: 'Nour Ahmed', total: 199.98, status: 'pending', date: '2026-05-20' },
-  { id: 'EVO-M4N5O6', customer: 'Youssef Ali', total: 79.99, status: 'delivered', date: '2026-05-19' },
-]
-
 export default function AdminDashboard() {
   const { user, isAdmin, signOut } = useSupabaseAuth()
   const navigate = useNavigate()
@@ -100,13 +58,40 @@ export default function AdminDashboard() {
   ])
 
   // Fetch real data from Supabase
-  const { data: products, isLoading: productsLoading } = trpc.products.list.useQuery()
-  const { data: orders, isLoading: ordersLoading } = trpc.orders.getAll.useQuery()
+  const { data: products, isLoading: productsLoading } = trpc.products.all.useQuery()
+const { data: orders, isLoading: ordersLoading } = trpc.orders.all.useQuery()
+const { data: totalViews } = trpc.analytics.getTotalViews.useQuery()
+const { data: viewsStats } = trpc.analytics.getStats.useQuery({ days: 7 })
+const { data: viewsByPage } = trpc.analytics.getViewsByPage.useQuery()
+const { data: currentViews } = trpc.analytics.getViewsForPeriod.useQuery({ days: 7 })
+const { data: previousViews } = trpc.analytics.getViewsForPeriod.useQuery({ days: 14 })
+const { data: currentOrders } = trpc.analytics.getOrdersForPeriod.useQuery({ days: 7 })
+const { data: previousOrders } = trpc.analytics.getOrdersForPeriod.useQuery({ days: 14 })
+const { data: currentRevenue } = trpc.analytics.getRevenueForPeriod.useQuery({ days: 7 })
+const { data: previousRevenue } = trpc.analytics.getRevenueForPeriod.useQuery({ days: 14 })
+const utils = trpc.useUtils()
+  // Debug logging
+  useEffect(() => {
+    console.log('AdminDashboard - orders:', orders)
+    console.log('AdminDashboard - ordersLoading:', ordersLoading)
+  }, [orders, ordersLoading])
   
   // Product mutations
   const createProduct = trpc.products.create.useMutation()
   const updateProduct = trpc.products.update.useMutation()
   const deleteProduct = trpc.products.delete.useMutation()
+  // Order mutation
+const updateOrderStatus = trpc.orders.updateStatus.useMutation()
+
+const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+  try {
+    await updateOrderStatus.mutateAsync({ id: orderId, status: newStatus as any })
+    toast.success('Order status updated!')
+    utils.orders.all.invalidate() // بيعمل ريفريش للأوردرات بعد التحديث
+  } catch (error: any) {
+    toast.error(error.message || 'Failed to update order status')
+  }
+}
   
   // Product form state
   const [showProductModal, setShowProductModal] = useState(false)
@@ -119,6 +104,7 @@ export default function AdminDashboard() {
     category: 'men' as 'men' | 'women' | 'unisex',
     type: 'tshirt' as 'tshirt' | 'hoodie',
     image: '',
+    images: [] as string[],
     colors: ['#000000'],
     sizes: ['S', 'M', 'L'],
     stock: 100,
@@ -128,10 +114,68 @@ export default function AdminDashboard() {
   })
 
   // Calculate totals from real data
-  const totalRevenue = orders?.reduce((acc, order) => acc + order.total, 0) || 0
+const totalRevenue = orders?.filter(o => o.status === 'delivered').reduce((acc, order) => acc + order.total, 0) || 0
   const totalOrders = orders?.length || 0
   const totalProducts = products?.length || 0
-  const totalViews = viewsData.reduce((acc, d) => acc + d.views, 0)
+
+  // Calculate category distribution from products
+  const categoryData = [
+    { name: 'Men', value: products?.filter(p => p.category === 'men').length || 0 },
+    { name: 'Women', value: products?.filter(p => p.category === 'women').length || 0 },
+    { name: 'Unisex', value: products?.filter(p => p.category === 'unisex').length || 0 },
+  ].filter(c => c.value > 0)
+
+  // Calculate recent orders from real data
+  const recentOrders = orders?.slice(0, 5).map(order => ({
+    id: order.id.slice(0, 8).toUpperCase(),
+    customer: order.address.split(' ').slice(-2).join(' ') || 'Unknown',
+    total: order.total,
+    status: order.status,
+    date: new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  })) || []
+
+  // Calculate top products from real data
+  const topProducts = products?.map(product => ({
+    name: product.name,
+    views: Math.floor(Math.random() * 1000) + 100, // Placeholder until we track views
+    sales: Math.floor(Math.random() * 50) + 10, // Placeholder until we track sales
+    revenue: product.price * (Math.floor(Math.random() * 50) + 10)
+  })).sort((a, b) => b.revenue - a.revenue).slice(0, 5) || []
+
+  // Calculate sales data by day from orders
+  const salesData = (() => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    return days.map(day => {
+      const dayOrders = orders?.filter(order => {
+        const orderDay = new Date(order.created_at).toLocaleDateString('en-US', { weekday: 'short' })
+        return orderDay === day
+      }) || []
+      return {
+        name: day,
+        sales: dayOrders.reduce((acc, o) => acc + o.total, 0),
+        orders: dayOrders.length
+      }
+    })
+  })()
+
+  // Calculate views data from real analytics
+  const viewsData = viewsStats || []
+  const actualTotalViews = totalViews || 0
+
+  // Calculate percentage changes
+  const calculateChange = (current: number, previous: number) => {
+    if (!previous || previous === 0) return { value: '+0%', up: true }
+    const change = ((current - previous) / previous) * 100
+    const isUp = change >= 0
+    return {
+      value: `${isUp ? '+' : ''}${change.toFixed(1)}%`,
+      up: isUp
+    }
+  }
+
+  const viewsChange = calculateChange(currentViews || 0, previousViews || 0)
+  const ordersChange = calculateChange(currentOrders || 0, previousOrders || 0)
+  const revenueChange = calculateChange(currentRevenue || 0, previousRevenue || 0)
 
   const handleSendMessage = (msgId: number) => {
     if (!messageText.trim()) return
@@ -152,6 +196,7 @@ export default function AdminDashboard() {
       category: 'men',
       type: 'tshirt',
       image: '',
+      images: [],
       colors: ['#000000'],
       sizes: ['S', 'M', 'L'],
       stock: 100,
@@ -172,6 +217,7 @@ export default function AdminDashboard() {
       category: product.category,
       type: product.type,
       image: product.image,
+      images: product.images || [],
       colors: product.colors || ['#000000'],
       sizes: product.sizes || ['S', 'M', 'L'],
       stock: product.stock || 100,
@@ -355,7 +401,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Image URL *</label>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Main Image URL *</label>
                   <input
                     required
                     type="url"
@@ -364,6 +410,106 @@ export default function AdminDashboard() {
                     style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
                     placeholder="https://example.com/image.jpg"
                   />
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Additional Image URLs (optional)</label>
+                  {productForm.images.map((img, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="url"
+                        value={img}
+                        onChange={(e) => {
+                          const newImages = [...productForm.images]
+                          newImages[idx] = e.target.value
+                          setProductForm({ ...productForm, images: newImages })
+                        }}
+                        style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', backgroundColor: '#1F2937', border: '1px solid #4B5563', color: 'white', outline: 'none' }}
+                        placeholder="https://example.com/image2.jpg"
+                      />
+                      {productForm.images.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newImages = productForm.images.filter((_, i) => i !== idx)
+                            setProductForm({ ...productForm, images: newImages })
+                          }}
+                          style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: '#EF4444', border: 'none', color: 'white', cursor: 'pointer' }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setProductForm({ ...productForm, images: [...productForm.images, ''] })}
+                    style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#6B46C1', border: 'none', color: 'white', cursor: 'pointer' }}
+                  >
+                    + Add Another Image
+                  </button>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Colors</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {productForm.colors.map((color, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input
+                          type="color"
+                          value={color}
+                          onChange={(e) => {
+                            const newColors = [...productForm.colors]
+                            newColors[idx] = e.target.value
+                            setProductForm({ ...productForm, colors: newColors })
+                          }}
+                          style={{ width: '40px', height: '40px', borderRadius: '8px', border: '1px solid #4B5563', cursor: 'pointer' }}
+                        />
+                        {productForm.colors.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newColors = productForm.colors.filter((_, i) => i !== idx)
+                              setProductForm({ ...productForm, colors: newColors })
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: '#EF4444', border: 'none', color: 'white', cursor: 'pointer', fontSize: '12px' }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProductForm({ ...productForm, colors: [...productForm.colors, '#000000'] })}
+                    style={{ marginTop: '8px', padding: '8px 16px', borderRadius: '8px', backgroundColor: '#6B46C1', border: 'none', color: 'white', cursor: 'pointer' }}
+                  >
+                    + Add Color
+                  </button>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', color: '#D1D5DB', marginBottom: '8px' }}>Sizes</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {['S', 'M', 'L', 'XL', 'XXL'].map((size) => (
+                      <label key={size} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', color: '#D1D5DB', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={productForm.sizes.includes(size)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setProductForm({ ...productForm, sizes: [...productForm.sizes, size] })
+                            } else {
+                              setProductForm({ ...productForm, sizes: productForm.sizes.filter(s => s !== size) })
+                            }
+                          }}
+                          style={{ width: '16px', height: '16px', borderRadius: '4px' }}
+                        />
+                        {size}
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
@@ -495,9 +641,9 @@ export default function AdminDashboard() {
                 {/* Stats Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
-                    { label: 'Total Revenue', value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, change: '+12.5%', up: true },
-                    { label: 'Total Orders', value: totalOrders.toString(), icon: ShoppingBag, change: '+8.2%', up: true },
-                    { label: 'Website Views', value: totalViews.toLocaleString(), icon: Eye, change: '+24.1%', up: true },
+                    { label: 'Total Revenue', value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, change: revenueChange.value, up: revenueChange.up },
+                    { label: 'Total Orders', value: totalOrders.toString(), icon: ShoppingBag, change: ordersChange.value, up: ordersChange.up },
+                    { label: 'Website Views', value: actualTotalViews.toLocaleString(), icon: Eye, change: viewsChange.value, up: viewsChange.up },
                     { label: 'Products', value: totalProducts.toString(), icon: Package, change: '+0%', up: true },
                   ].map((stat) => (
                     <motion.div
@@ -735,36 +881,82 @@ export default function AdminDashboard() {
                     <p className="text-white/40 text-center py-4">Loading orders...</p>
                   ) : orders && orders.length > 0 ? (
                     <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Order ID</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Customer</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Total</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {orders.map((order) => (
-                          <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="py-3 px-4 font-medium">{order.id.slice(0, 8)}</td>
-                            <td className="py-3 px-4">{order.address}</td>
-                            <td className="py-3 px-4 font-bold">${order.total.toFixed(2)}</td>
-                            <td className="py-3 px-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                                order.status === 'delivered' ? 'bg-green-400/10 text-green-400' :
-                                order.status === 'shipped' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
-                                order.status === 'processing' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' :
-                                'bg-[#6B46C1]/10 text-[#6B46C1]'
-                              }`}>
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-white/40">{new Date(order.createdAt).toLocaleDateString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+  <thead>
+    <tr className="border-b border-white/10">
+      <th className="text-left py-3 px-4 font-medium text-white/40">Order ID</th>
+      <th className="text-left py-3 px-4 font-medium text-white/40">Customer</th>
+      <th className="text-left py-3 px-4 font-medium text-white/40">Total</th>
+      <th className="text-left py-3 px-4 font-medium text-white/40">Payment</th>
+      <th className="text-left py-3 px-4 font-medium text-white/40">Status</th>
+      <th className="text-left py-3 px-4 font-medium text-white/40">Date</th>
+      <th className="text-left py-3 px-4 font-medium text-white/40">Receipt</th>
+      <th className="text-left py-3 px-4 font-medium text-white/40">Change Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {orders.map((order) => (
+      <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+        <td className="py-3 px-4 font-medium">{order.id.slice(0, 8)}</td>
+        <td className="py-3 px-4">{order.address}</td>
+        <td className="py-3 px-4 font-bold">${order.total.toFixed(2)}</td>
+        <td className="py-3 px-4">
+          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+            order.payment_method === 'cod' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' :
+            order.payment_method === 'instapay' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
+            'bg-[#EF4444]/10 text-[#EF4444]'
+          }`}>
+            {order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method === 'instapay' ? 'Instapay' : 'Vodafone Cash'}
+          </span>
+        </td>
+        <td className="py-3 px-4">
+          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+            order.status === 'delivered' ? 'bg-green-400/10 text-green-400' :
+            order.status === 'shipped' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
+            order.status === 'processing' ? 'bg-[#FBBF24]/10 text-[#FBBF24]' :
+            order.status === 'cancelled' ? 'bg-red-400/10 text-red-400' :
+            'bg-[#6B46C1]/10 text-[#6B46C1]'
+          }`}>
+            {order.status}
+          </span>
+        </td>
+        <td className="py-3 px-4 text-white/40">{new Date(order.created_at).toLocaleDateString()}</td>
+        <td className="py-3 px-4">
+          {order.receipt_image ? (
+            <button
+              onClick={() => {
+                const img = new Image()
+                img.src = order.receipt_image
+                const w = window.open('')
+                if (w) {
+                  w.document.write(img.outerHTML)
+                  w.document.title = `Receipt - ${order.id.slice(0, 8)}`
+                }
+              }}
+              className="text-[#6B46C1] hover:text-[#3B82F6] text-xs font-bold underline"
+            >
+              View Receipt
+            </button>
+          ) : (
+            <span className="text-white/20 text-xs">No receipt</span>
+          )}
+        </td>
+        <td className="py-3 px-4">
+          <select
+            value={order.status}
+            onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#6B46C1] cursor-pointer"
+          >
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
                   ) : (
                     <p className="text-white/40 text-center py-4">No orders yet</p>
                   )}
@@ -775,31 +967,50 @@ export default function AdminDashboard() {
             {/* Analytics */}
             {activeTab === 'analytics' && (
               <div className="space-y-6">
-                {/* Top Products Table */}
+                {/* Page Views by Page */}
                 <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
-                  <h3 className="font-bold mb-4">Top Performing Products</h3>
+                  <h3 className="font-bold mb-4">Page Views by Page</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Product</th>
+                          <th className="text-left py-3 px-4 font-medium text-white/40">Page</th>
                           <th className="text-left py-3 px-4 font-medium text-white/40">Views</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Sales</th>
-                          <th className="text-left py-3 px-4 font-medium text-white/40">Revenue</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {topProducts.map((product, i) => (
-                          <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="py-3 px-4 font-medium">{product.name}</td>
-                            <td className="py-3 px-4">{product.views.toLocaleString()}</td>
-                            <td className="py-3 px-4">{product.sales}</td>
-                            <td className="py-3 px-4 font-bold text-[#6B46C1]">${product.revenue.toLocaleString()}</td>
+                        {viewsByPage && viewsByPage.length > 0 ? (
+                          viewsByPage.map((item, i) => (
+                            <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td className="py-3 px-4 font-medium">{item.page}</td>
+                              <td className="py-3 px-4 font-bold text-[#6B46C1]">{item.views.toLocaleString()}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={2} className="py-4 text-center text-white/40">No page views data yet</td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>
+                </div>
+
+                {/* Weekly Page Views */}
+                <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                  <h3 className="font-bold mb-4">Weekly Page Views</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <AreaChart data={viewsData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                      <XAxis dataKey="name" stroke="#555" fontSize={12} />
+                      <YAxis stroke="#555" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0F0F0F', border: '1px solid #222', borderRadius: '12px' }}
+                        labelStyle={{ color: '#fff' }}
+                      />
+                      <Area type="monotone" dataKey="views" stroke="#6B46C1" fill="#6B46C1" fillOpacity={0.3} />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
 
                 {/* Category Distribution */}

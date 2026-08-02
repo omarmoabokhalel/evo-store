@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { useThemeStore } from '@/stores/themeStore'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
-import { useCartStore } from '@/stores/cartStore'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
+import { trpc } from '@/providers/trpc'
 import {
   ShoppingBag,
   Sun,
@@ -23,9 +23,18 @@ import { motion, AnimatePresence } from 'framer-motion'
 export default function Navbar() {
   const { isDark, toggle } = useThemeStore()
   const { user, isAdmin, signOut } = useSupabaseAuth()
-  const { getTotalItems } = useCartStore()
   const { language, setLanguage } = useLanguageStore()
   const t = translations[language]
+
+  // Fetch cart from Supabase
+  const { data: cartItems } = trpc.cart.get.useQuery(undefined, {
+    enabled: !!user
+  })
+
+  const getTotalItems = () => {
+    if (!cartItems || cartItems.length === 0) return 0
+    return cartItems.reduce((acc, item) => acc + item.quantity, 0)
+  }
   
   const location = useLocation()
   const navigate = useNavigate()
@@ -83,8 +92,11 @@ export default function Navbar() {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 group shrink-0">
               <div className="flex items-center gap-2">
-                <img src="/images/logo.png" alt="Logo" className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className={`text-xl sm:text-2xl font-bold tracking-[-0.05em] transition-colors ${isNavActive ? 'text-foreground' : 'text-white'}`}>EVO</span>
+                <img
+                  src={isDark ? "/images/logo_dark_mode.png" : "/images/logo_white_mode.png"}
+                  alt="Logo"
+                  className="h-6 w-auto sm:h-7 object-contain"
+                />
               </div>
             </Link>
 

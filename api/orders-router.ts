@@ -15,7 +15,7 @@ export const ordersRouter = createRouter({
     .input(
       z.object({
         total: z.number(),
-        paymentMethod: z.enum(["cod", "online"]),
+        paymentMethod: z.enum(["cod", "instapay", "vodafone"]),
         address: z.string(),
         phone: z.string(),
         items: z.array(
@@ -43,7 +43,7 @@ export const ordersRouter = createRouter({
     ),
 
   // Admin queries
-  all: adminQuery.query(() => orderQueries.getAllOrders()),
+  all: authedQuery.query(() => orderQueries.getAllOrders()),
 
   // Admin mutations
   updateStatus: adminQuery
@@ -54,4 +54,14 @@ export const ordersRouter = createRouter({
       })
     )
     .mutation(({ input }) => orderQueries.updateOrderStatus(input.id, input.status)),
+
+  // User mutations
+  uploadReceipt: authedQuery
+    .input(
+      z.object({
+        orderId: z.string(),
+        receiptImage: z.string(),
+      })
+    )
+    .mutation(({ input }) => orderQueries.uploadReceipt(input.orderId, input.receiptImage)),
 });

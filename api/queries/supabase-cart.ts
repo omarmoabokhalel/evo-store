@@ -5,11 +5,16 @@ export async function getCartItems(userId: string) {
     .from('cart_items')
     .select(`
       *,
-      products:product_id (*)
+      product:products (*)
     `)
     .eq('user_id', userId)
-  
-  if (error) throw error
+
+  if (error) {
+    console.error('Error fetching cart items:', error)
+    throw error
+  }
+
+  console.log('Cart items fetched:', data)
   return data
 }
 
@@ -20,7 +25,23 @@ export async function addCartItem(data: {
   size: string
   color: string
 }) {
-  const { error } = await supabase
+  console.log('Adding cart item:', data)
+
+  // Delete any existing item with same user_id and product_id to avoid unique constraint
+  const { error: deleteError } = await supabase
+    .from('cart_items')
+    .delete()
+    .eq('user_id', data.userId)
+    .eq('product_id', data.productId)
+
+  if (deleteError) {
+    console.error('Error deleting existing cart item:', deleteError)
+    // Continue anyway, might not exist
+  }
+
+  // Insert new item
+  console.log('Inserting new cart item')
+  const { error: insertError } = await supabase
     .from('cart_items')
     .insert({
       user_id: data.userId,
@@ -29,8 +50,13 @@ export async function addCartItem(data: {
       size: data.size,
       color: data.color,
     })
-  
-  if (error) throw error
+
+  if (insertError) {
+    console.error('Error adding cart item:', insertError)
+    throw insertError
+  }
+
+  console.log('Cart item added successfully')
 }
 
 export async function updateCartItem(id: string, quantity: number) {

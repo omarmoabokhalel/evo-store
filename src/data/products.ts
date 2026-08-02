@@ -1,5 +1,5 @@
 export interface Product {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
   price: number;
@@ -12,8 +12,12 @@ export interface Product {
   sizes: string[];
   stock: number;
   isNew: boolean;
+  is_new?: boolean; // Backend snake_case
   isSpecial: boolean;
+  is_special?: boolean; // Backend snake_case
   designType: string;
+  design_type?: string; // Backend snake_case
+  created_at?: string;
 }
 
 export interface CartItem {

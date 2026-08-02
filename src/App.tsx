@@ -10,6 +10,7 @@ import WheelOfFortune from '@/components/WheelOfFortune'
 import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
 import ScrollToTop from '@/components/ScrollToTop'
+import { usePageView } from '@/hooks/usePageView'
 
 const Home = lazy(() => import('@/pages/Home'))
 const Shop = lazy(() => import('@/pages/Shop'))
@@ -17,6 +18,7 @@ const ProductDetail = lazy(() => import('@/pages/ProductDetail'))
 const Checkout = lazy(() => import('@/pages/Checkout'))
 const Profile = lazy(() => import('@/pages/Profile'))
 const OrderTracking = lazy(() => import('@/pages/OrderTracking'))
+const UploadReceipt = lazy(() => import('@/pages/UploadReceipt'))
 const Customizer = lazy(() => import('@/pages/Customizer'))
 const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'))
 const Login = lazy(() => import('@/pages/Login'))
@@ -25,7 +27,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505]">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <Spinner className="w-8 h-8 text-[#6B46C1]" />
     </div>
   )
@@ -34,6 +36,7 @@ function LoadingFallback() {
 export default function App() {
   const { isDark } = useThemeStore()
   const { language } = useLanguageStore()
+  usePageView()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
@@ -58,6 +61,7 @@ export default function App() {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/track-order/:orderId" element={<OrderTracking />} />
+            <Route path="/upload-receipt/:orderId" element={<UploadReceipt />} />
             <Route path="/customizer" element={<Customizer />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/login" element={<Login />} />
@@ -68,7 +72,7 @@ export default function App() {
         <Footer />
         <CartDrawer />
         <WheelOfFortune />
-        <Toaster position="top-center" />
+        <Toaster position="top-center" style={{ marginTop: '80px' }} />
       </div>
     </SupabaseAuthProvider>
   )

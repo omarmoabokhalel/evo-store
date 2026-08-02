@@ -49,6 +49,21 @@ export default function Checkout() {
 
   const items = cartItems || []
 
+  // Fetch missing product data
+  const productIds = items.filter(item => !item.product).map(item => item.product_id)
+  const { data: products } = trpc.products.list.useQuery(undefined, {
+    enabled: productIds.length > 0
+  })
+
+  // Create a map of products by ID
+  const productMap = new Map((products || []).map(p => [p.id, p]))
+
+  // Merge product data into cart items
+  const itemsWithProducts = items.map(item => ({
+    ...item,
+    product: item.product || productMap.get(item.product_id)
+  }))
+
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -56,12 +71,15 @@ export default function Checkout() {
     address: '',
     city: '',
     postalCode: '',
-    paymentMethod: 'cod' as 'cod' | 'online',
+    paymentMethod: 'cod' as 'cod' | 'instapay' | 'vodafone',
   })
   const [isProcessing, setIsProcessing] = useState(false)
 
   const discount = 0 // TODO: Add wheel discount from Supabase
-  const subtotal = items.reduce((acc, item) => acc + (item.product.price * (1 - item.product.discount / 100) * item.quantity), 0)
+  const subtotal = itemsWithProducts.reduce((acc, item) => {
+    if (!item.product) return acc
+    return acc + (parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity)
+  }, 0)
   const discountAmount = subtotal * (discount / 100)
   const shipping = subtotal > 50 ? 0 : 5.99
   const total = subtotal - discountAmount + shipping
@@ -69,7 +87,7 @@ export default function Checkout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (items.length === 0) {
+    if (itemsWithProducts.length === 0) {
       toast.error(t.emptyCartTitle)
       return
     }
@@ -82,24 +100,34 @@ export default function Checkout() {
     setIsProcessing(true)
 
     try {
+      console.log('Creating order with payment method:', formData.paymentMethod)
       const order = await createOrder.mutateAsync({
         total,
         paymentMethod: formData.paymentMethod,
         address: `${formData.address}, ${formData.city}, ${formData.postalCode}`,
         phone: formData.phone,
-        items: items.map((item) => ({
+        items: itemsWithProducts.filter(item => item.product).map((item) => ({
           productId: item.product.id,
+          name: item.product.name,
+          price: parseFloat(String(item.product.price || 0)),
           quantity: item.quantity,
           size: item.size,
           color: item.color,
+          image: item.product.image,
         })),
       })
 
       await clearCart.mutateAsync()
 
       toast.success(language === 'ar' ? 'تم تأكيد طلبك بنجاح! 🎉' : 'Order placed successfully!')
-      navigate(`/track-order/${order.id}`)
+
+      if (formData.paymentMethod !== 'cod') {
+        navigate(`/upload-receipt/${order.id}`)
+      } else {
+        navigate(`/track-order/${order.id}`)
+      }
     } catch (error: any) {
+      console.error('Checkout error:', error)
       toast.error(error.message || (language === 'ar' ? 'فشل إنشاء الطلب' : 'Failed to create order'))
     } finally {
       setIsProcessing(false)
@@ -110,7 +138,7 @@ export default function Checkout() {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  if (items.length === 0) {
+  if (itemsWithProducts.length === 0) {
     return (
       <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
         <div className="text-center">
@@ -257,46 +285,78 @@ export default function Checkout() {
                   <Lock className="w-5 h-5 text-[#6B46C1]" />
                   {t.paymentMethod}
                 </h2>
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-3 gap-4">
                   <button
                     type="button"
                     onClick={() => updateField('paymentMethod', 'cod')}
-                    className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
+                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
                       formData.paymentMethod === 'cod'
                         ? 'border-[#6B46C1] bg-[#6B46C1]/5'
                         : 'border-border hover:border-foreground/20'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-xl bg-[#FBBF24]/10 flex items-center justify-center shrink-0">
-                      <Banknote className="w-6 h-6 text-[#FBBF24]" />
+                    <div className="w-10 h-10 rounded-xl bg-[#FBBF24]/10 flex items-center justify-center shrink-0">
+                      <Banknote className="w-5 h-5 text-[#FBBF24]" />
                     </div>
                     <div className="text-start">
-                      <p className="font-bold text-foreground">{t.codLabel}</p>
-                      <p className="text-sm text-muted-foreground">{t.codDesc}</p>
+                      <p className="font-bold text-foreground text-sm">{language === 'ar' ? 'الدفع عند الاستلام' : 'Cash on Delivery'}</p>
+                      <p className="text-xs text-muted-foreground">{language === 'ar' ? 'ادفع عند الاستلام' : 'Pay on delivery'}</p>
                     </div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => updateField('paymentMethod', 'online')}
-                    className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
-                      formData.paymentMethod === 'online'
+                    onClick={() => updateField('paymentMethod', 'instapay')}
+                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                      formData.paymentMethod === 'instapay'
                         ? 'border-[#6B46C1] bg-[#6B46C1]/5'
                         : 'border-border hover:border-foreground/20'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center shrink-0">
-                      <CreditCard className="w-6 h-6 text-[#3B82F6]" />
+                    <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/10 flex items-center justify-center shrink-0">
+                      <CreditCard className="w-5 h-5 text-[#3B82F6]" />
                     </div>
                     <div className="text-start">
-                      <p className="font-bold text-foreground">{t.onlineLabel}</p>
-                      <p className="text-sm text-muted-foreground">{t.onlineDesc}</p>
+                      <p className="font-bold text-foreground text-sm">Instapay</p>
+                      <p className="text-xs text-muted-foreground">{language === 'ar' ? 'تحويل عبر إنستاباي' : 'Transfer via Instapay'}</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateField('paymentMethod', 'vodafone')}
+                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                      formData.paymentMethod === 'vodafone'
+                        ? 'border-[#6B46C1] bg-[#6B46C1]/5'
+                        : 'border-border hover:border-foreground/20'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-[#EF4444]/10 flex items-center justify-center shrink-0">
+                      <CreditCard className="w-5 h-5 text-[#EF4444]" />
+                    </div>
+                    <div className="text-start">
+                      <p className="font-bold text-foreground text-sm">{language === 'ar' ? 'فودافون كاش' : 'Vodafone Cash'}</p>
+                      <p className="text-xs text-muted-foreground">{language === 'ar' ? 'تحويل عبر فودافون كاش' : 'Transfer via Vodafone Cash'}</p>
                     </div>
                   </button>
                 </div>
+
+                {formData.paymentMethod !== 'cod' && (
+                  <div className="mt-4 p-4 rounded-2xl bg-foreground/5 border border-border">
+                    <p className="font-bold text-foreground mb-2">
+                      {language === 'ar' ? 'رقم المحفظة للتحويل:' : 'Wallet number for transfer:'}
+                    </p>
+                    <p className="text-lg font-bold text-[#6B46C1]">
+                      {formData.paymentMethod === 'instapay' ? '01277627382' : '01211839414'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {language === 'ar' ? 'يرجى إرفاق صورة الإيصال بعد التحويل' : 'Please attach receipt image after transfer'}
+                    </p>
+                  </div>
+                )}
               </motion.div>
 
-              {!isLoggedIn && (
+              {!user && (
                 <div className="p-4 rounded-2xl bg-[#FBBF24]/10 border border-[#FBBF24]/20 text-sm text-[#FBBF24]">
                   <Link to="/login" className="underline hover:no-underline font-bold">
                     {t.login}
@@ -320,7 +380,7 @@ export default function Checkout() {
 
               {/* Items */}
               <div className="space-y-4 max-h-64 overflow-y-auto scrollbar-hide">
-                {items.map((item) => (
+                {itemsWithProducts.filter(item => item.product).map((item) => (
                   <div key={item.product.id} className="flex gap-3">
                     <img
                       src={item.product.image}
@@ -333,7 +393,7 @@ export default function Checkout() {
                         {item.size} / {getColorName(item.color)}
                       </p>
                       <p className="text-sm font-bold text-foreground mt-2">
-                        ${(item.product.price * (1 - item.product.discount / 100) * item.quantity).toFixed(2)}
+                        ${(parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity).toFixed(2)}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground">x{item.quantity}</span>

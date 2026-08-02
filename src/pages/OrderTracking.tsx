@@ -14,7 +14,7 @@ import {
   CreditCard,
   Banknote,
 } from 'lucide-react'
-import { useAuthStore } from '@/stores/authStore'
+import { trpc } from '@/providers/trpc'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 
@@ -23,10 +23,13 @@ export default function OrderTracking() {
   const t = translations[language]
 
   const { orderId } = useParams<{ orderId: string }>()
-  const { orders } = useAuthStore()
   const [searchId, setSearchId] = useState('')
 
-  const order = orders.find((o) => o.id === orderId) || null
+  // Fetch order by ID from backend
+  const { data: order, isLoading, error } = trpc.orders.byId.useQuery(
+    { id: orderId || '' },
+    { enabled: !!orderId }
+  )
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -95,7 +98,20 @@ export default function OrderTracking() {
     return t.statusCancelled
   }
 
-  if (!order) {
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-background pt-28 pb-20 transition-colors duration-300">
+        <div className="max-w-[800px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center py-20">
+            <div className="w-16 h-16 border-4 border-[#6B46C1] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-muted-foreground">{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</p>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!order || error) {
     return (
       <main className="min-h-screen bg-background pt-28 pb-20 transition-colors duration-300">
         <div className="max-w-[800px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -120,24 +136,6 @@ export default function OrderTracking() {
                 {language === 'ar' ? 'تتبع' : 'Track'}
               </button>
             </form>
-
-            {/* Demo Order IDs */}
-            <div className="mt-8">
-              <p className="text-muted-foreground text-sm mb-3">
-                {language === 'ar' ? 'جرب أرقام الطلبات التجريبية دي:' : 'Try a demo order ID:'}
-              </p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {['EVO-DEMO1', 'EVO-DEMO2', 'EVO-DEMO3'].map((id) => (
-                  <button
-                    key={id}
-                    onClick={() => setSearchId(id)}
-                    className="px-4 py-2 rounded-full bg-foreground/5 border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-all"
-                  >
-                    {id}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </main>
@@ -164,11 +162,11 @@ export default function OrderTracking() {
             <span className="text-foreground font-bold">{t.trackTitle}</span>
           </nav>
           <h1 className="text-3xl font-bold tracking-[-0.02em] text-foreground mb-2">
-            {t.trackOrderNo.replace('{id}', order.id)}
+            {language === 'ar' ? 'طلب رقم' : 'Order #'} {order.id.slice(0, 8)}
           </h1>
           <p className="text-muted-foreground font-medium text-sm">
             {language === 'ar' ? 'تم الطلب في ' : 'Placed on '}
-            {new Date(order.createdAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
+            {new Date(order.created_at).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
@@ -237,15 +235,15 @@ export default function OrderTracking() {
               {language === 'ar' ? 'المنتجات المطلوبة' : 'Order Items'}
             </h2>
             <div className="space-y-4">
-              {order.items.map((item, i) => (
+              {order.items.map((item: any, i: number) => (
                 <div key={i} className="flex gap-4">
                   <img
-                    src={item.product.image}
-                    alt={item.product.name}
+                    src={item.image}
+                    alt={item.name}
                     className="w-16 h-20 object-cover rounded-xl border border-border bg-foreground/5"
                   />
                   <div>
-                    <p className="font-bold text-foreground text-sm">{item.product.name}</p>
+                    <p className="font-bold text-foreground text-sm">{item.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {t.size}: {item.size} / {t.color}: {getTranslatedColor(item.color)}
                     </p>
@@ -253,7 +251,7 @@ export default function OrderTracking() {
                       {t.quantityAbbr}: {item.quantity}
                     </p>
                     <p className="font-bold text-foreground text-sm mt-1">
-                      ${(item.product.price * item.quantity).toFixed(2)}
+                      ${(item.price * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -283,12 +281,12 @@ export default function OrderTracking() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{t.paymentMethod}</span>
                   <span className="flex items-center gap-1.5 text-foreground font-semibold">
-                    {order.paymentMethod === 'cod' ? (
+                    {order.payment_method === 'cod' ? (
                       <Banknote className="w-4 h-4 text-[#FBBF24]" />
                     ) : (
                       <CreditCard className="w-4 h-4 text-[#3B82F6]" />
                     )}
-                    {order.paymentMethod === 'cod' ? t.codLabel : t.onlineLabel}
+                    {order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method === 'instapay' ? 'Instapay' : 'Vodafone Cash'}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">

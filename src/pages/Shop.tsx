@@ -26,7 +26,7 @@ export default function Shop() {
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const [selectedColors, setSelectedColors] = useState<string[]>([])
   const [selectedDesigns, setSelectedDesigns] = useState<string[]>([])
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 150])
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000])
   const [sortBy, setSortBy] = useState('newest')
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -65,7 +65,7 @@ export default function Shop() {
 
     // Design type filter
     if (selectedDesigns.length > 0) {
-      result = result.filter((p) => selectedDesigns.includes(p.designType || ''))
+      result = result.filter((p) => selectedDesigns.includes(p.designType || p.design_type || ''))
     }
 
     // Price filter
@@ -90,8 +90,12 @@ export default function Shop() {
         result.sort((a, b) => a.name.localeCompare(b.name))
         break
       default:
-        // newest first (by id, higher = newer)
-        result.sort((a, b) => b.id - a.id)
+        // newest first (by created_at or id, higher = newer)
+        result.sort((a, b) => {
+          const aDate = a.created_at ? new Date(a.created_at).getTime() : (typeof a.id === 'string' ? parseInt(a.id.slice(0, 8), 16) : a.id)
+          const bDate = b.created_at ? new Date(b.created_at).getTime() : (typeof b.id === 'string' ? parseInt(b.id.slice(0, 8), 16) : b.id)
+          return bDate - aDate
+        })
     }
 
     return result
@@ -225,7 +229,7 @@ export default function Shop() {
               <SlidersHorizontal className="w-4 h-4" />
               <span className="hidden sm:inline">{t.filters}</span>
               {hasActiveFilters && (
-                <span className="w-5 h-5 rounded-full bg-white dark:bg-black text-[#6B46C1] text-xs font-bold flex items-center justify-center">
+                <span className="w-5 h-5 rounded-full bg-background text-[#6B46C1] text-xs font-bold flex items-center justify-center">
                   !
                 </span>
               )}
@@ -458,7 +462,7 @@ function ProductCard({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.05 }}
       >
-        <Link to={`/product/${product.id}`} className="group flex gap-6 p-4 rounded-2xl bg-card border border-border hover:border-primary/20 hover:bg-foreground/[0.02] hover:shadow-md transition-all">
+        <Link to={`/product/${String(product.id)}`} className="group flex gap-6 p-4 rounded-2xl bg-card border border-border hover:border-primary/20 hover:bg-foreground/[0.02] hover:shadow-md transition-all">
           <div className="relative w-32 h-40 shrink-0 rounded-xl overflow-hidden bg-foreground/5">
             <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
             {product.discount > 0 && (
@@ -474,18 +478,18 @@ function ProductCard({
             <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{product.description}</p>
             <div className="flex items-center gap-4">
               <span className="font-bold text-xl text-foreground">
-                ${(product.price * (1 - product.discount / 100)).toFixed(2)}
+                ${(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)}
               </span>
-              {product.discount > 0 && (
+              {(product.discount || 0) > 0 && (
                 <span className="text-muted-foreground line-through">${product.price.toFixed(2)}</span>
               )}
             </div>
             <div className="flex items-center gap-2 mt-3">
-              {product.colors.slice(0, 4).map((color, ci) => (
+              {(product.colors || []).slice(0, 4).map((color, ci) => (
                 <span key={ci} className="w-5 h-5 rounded-full border border-border" style={{ backgroundColor: color }} />
               ))}
               <span className="text-muted-foreground text-xs ms-2">
-                {product.sizes.join(', ')}
+                {(product.sizes || []).join(', ')}
               </span>
             </div>
           </div>
@@ -500,7 +504,7 @@ function ProductCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
     >
-      <Link to={`/product/${product.id}`} className="group block">
+      <Link to={`/product/${String(product.id)}`} className="group block">
         <div className="relative aspect-[3/4] rounded-xl sm:rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-3 sm:mb-4">
           <img
             src={product.image}
@@ -510,21 +514,21 @@ function ProductCard({
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
           <div className="absolute top-2 sm:top-3 start-2 sm:start-3 flex flex-col gap-1.5 sm:gap-2">
-            {product.isNew && (
+            {('is_new' in product ? product.is_new : product.isNew) && (
               <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#6B46C1] text-white text-[10px] sm:text-xs font-bold uppercase shadow-sm">
                 {language === 'ar' ? 'جديد' : 'New'}
               </span>
             )}
             {product.discount > 0 && (
               <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FF2A2A] text-white text-[10px] sm:text-xs font-bold uppercase shadow-sm">
-                -{product.discount}%
+                -{product.discount || 0}%
               </span>
             )}
           </div>
 
-          {product.stock < 20 && (
+          {(product.stock || 0) < 20 && (
             <div className="absolute bottom-2 sm:bottom-3 end-2 sm:end-3">
-              <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-black/60 text-white text-[10px] sm:text-xs font-medium backdrop-blur-sm shadow-sm">
+              <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-foreground/60 text-background text-[10px] sm:text-xs font-medium backdrop-blur-sm shadow-sm">
                 {t.onlyLeft.replace('{count}', String(product.stock))}
               </span>
             </div>
@@ -544,22 +548,22 @@ function ProductCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="font-bold text-sm sm:text-base text-foreground">
-                ${(product.price * (1 - product.discount / 100)).toFixed(2)}
+                ${(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)}
               </span>
-              {product.discount > 0 && (
+              {(product.discount || 0) > 0 && (
                 <span className="text-muted-foreground line-through text-xs sm:text-sm">${product.price.toFixed(2)}</span>
               )}
             </div>
             <div className="flex items-center gap-0.5 sm:gap-1">
-              {product.colors.slice(0, 3).map((color, ci) => (
+              {(product.colors || []).slice(0, 3).map((color, ci) => (
                 <span
                   key={ci}
                   className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border border-border"
                   style={{ backgroundColor: color }}
                 />
               ))}
-              {product.colors.length > 3 && (
-                <span className="text-muted-foreground text-[10px] sm:text-xs">+{product.colors.length - 3}</span>
+              {(product.colors || []).length > 3 && (
+                <span className="text-muted-foreground text-[10px] sm:text-xs">+{(product.colors || []).length - 3}</span>
               )}
             </div>
           </div>

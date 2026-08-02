@@ -3,16 +3,19 @@ import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware
 import * as productQueries from "./queries/supabase-products";
 
 export const productsRouter = createRouter({
-  // Public queries
-  list: publicQuery.query(() => productQueries.getAllProducts()),
+  // Public queries (user-facing - filters out out-of-stock products)
+  list: publicQuery.query(() => productQueries.getAvailableProducts()),
   byId: publicQuery.input(z.object({ id: z.string() })).query(({ input }) =>
     productQueries.getProductById(input.id)
   ),
   byCategory: publicQuery.input(z.object({ category: z.string() })).query(({ input }) =>
-    productQueries.getProductsByCategory(input.category)
+    productQueries.getAvailableProductsByCategory(input.category)
   ),
-  new: publicQuery.query(() => productQueries.getNewProducts()),
-  special: publicQuery.query(() => productQueries.getSpecialProducts()),
+  new: publicQuery.query(() => productQueries.getAvailableNewProducts()),
+  special: publicQuery.query(() => productQueries.getAvailableSpecialProducts()),
+
+  // Admin queries (shows all products including out-of-stock)
+  all: adminQuery.query(() => productQueries.getAllProducts()),
 
   // Admin mutations
   create: adminQuery

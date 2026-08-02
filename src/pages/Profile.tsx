@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import {
   User,
   ShoppingBag,
-  Eye,
+  Heart,
   Clock,
   ChevronRight,
   ChevronLeft,
@@ -18,19 +18,53 @@ import {
   Phone,
   Mail,
 } from 'lucide-react'
-import { useAuthStore } from '@/stores/authStore'
+import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
+import { trpc } from '@/providers/trpc'
 
 export default function Profile() {
   const { language } = useLanguageStore()
   const t = translations[language]
 
-  const { isLoggedIn, user, orders, lastViewed, setLoggedOut, wheelDiscount, wheelExpiry, wheelUsed } = useAuthStore()
+  const { user, signOut, loading } = useSupabaseAuth()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'orders' | 'viewed' | 'settings'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'favorites' | 'settings'>('orders')
 
-  if (!isLoggedIn) {
+  // Fetch orders from Supabase
+  const { data: orders = [] } = trpc.orders.myOrders.useQuery(undefined, {
+    enabled: !!user
+  })
+
+  // Fetch favorites from localStorage
+  const [favorites, setFavorites] = useState<any[]>(() => {
+    const saved = localStorage.getItem('favorites')
+    return saved ? JSON.parse(saved) : []
+  })
+
+  // Re-fetch favorites when tab changes to favorites
+  useEffect(() => {
+    if (activeTab === 'favorites') {
+      const saved = localStorage.getItem('favorites')
+      setFavorites(saved ? JSON.parse(saved) : [])
+    }
+  }, [activeTab])
+
+  // Placeholder for recently viewed products (to be implemented)
+  const lastViewed: any[] = []
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#6B46C1] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (!user) {
     return (
       <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
         <div className="text-center bg-card border border-border p-8 rounded-3xl max-w-sm w-full shadow-sm">
@@ -90,12 +124,12 @@ export default function Profile() {
     { label: language === 'ar' ? 'كل الطلبات' : 'Total Orders', value: orders.length, icon: ShoppingBag },
     { label: language === 'ar' ? 'طلبات نشطة' : 'Active Orders', value: orders.filter((o) => o.status === 'pending' || o.status === 'processing').length, icon: Package },
     { label: language === 'ar' ? 'تم التوصيل' : 'Delivered', value: orders.filter((o) => o.status === 'delivered').length, icon: CheckCircle },
-    { label: language === 'ar' ? 'المفضلة' : 'Wishlist', value: 0, icon: Eye },
+    { label: language === 'ar' ? 'المفضلة' : 'Wishlist', value: favorites.length, icon: Heart },
   ]
 
   const tabs = [
     { id: 'orders' as const, label: language === 'ar' ? 'طلباتي' : 'My Orders', icon: ShoppingBag },
-    { id: 'viewed' as const, label: language === 'ar' ? 'تصفحتها مؤخراً' : 'Recently Viewed', icon: Eye },
+    { id: 'favorites' as const, label: language === 'ar' ? 'المفضلة' : 'Favorites', icon: Heart },
     { id: 'settings' as const, label: language === 'ar' ? 'الإعدادات' : 'Settings', icon: Settings },
   ]
 
@@ -110,14 +144,14 @@ export default function Profile() {
         >
           <div className="flex items-center gap-6 mb-8 flex-wrap sm:flex-nowrap">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#6B46C1] to-[#3B82F6] flex items-center justify-center text-3xl font-bold text-white shadow-md">
-              {user?.name?.charAt(0) || 'U'}
+              {user?.user_metadata?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-[-0.02em] text-foreground">{user?.name}</h1>
+              <h1 className="text-3xl font-bold tracking-[-0.02em] text-foreground">{user?.user_metadata?.name || user?.email?.split('@')[0]}</h1>
               <p className="text-muted-foreground">{user?.email}</p>
             </div>
             <button
-              onClick={() => { setLoggedOut(); navigate('/'); }}
+              onClick={async () => { await signOut(); navigate('/'); }}
               className="ms-auto flex items-center gap-2 px-5 py-2.5 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all font-bold text-sm shadow-sm"
             >
               <LogOut className="w-4 h-4" />
@@ -138,21 +172,6 @@ export default function Profile() {
               </div>
             ))}
           </div>
-
-          {/* Wheel Discount */}
-          {wheelDiscount && !wheelUsed && wheelExpiry && new Date(wheelExpiry) > new Date() && (
-            <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-[#6B46C1]/20 to-[#3B82F6]/20 border border-[#6B46C1]/30">
-              <p className="font-bold text-gradient">
-                {language === 'ar' 
-                  ? `مبروك! عندك خصم ${wheelDiscount}% من عجلة الحظ!` 
-                  : `You have a ${wheelDiscount}% discount from the wheel!`}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {language === 'ar' ? 'صالح للاستخدام لغاية: ' : 'Valid until '}
-                {new Date(wheelExpiry).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}
-              </p>
-            </div>
-          )}
         </motion.div>
 
         {/* Tabs */}
@@ -203,9 +222,9 @@ export default function Profile() {
                       <div className="flex items-center gap-3">
                         {getStatusIcon(order.status)}
                         <div>
-                          <p className="font-bold text-foreground">{order.id}</p>
+                          <p className="font-bold text-foreground">{order.id.slice(0, 8)}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {new Date(order.createdAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}
+                            {new Date(order.created_at).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}
                           </p>
                         </div>
                       </div>
@@ -222,10 +241,10 @@ export default function Profile() {
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="flex -space-x-2">
-                        {order.items.slice(0, 3).map((item, i) => (
+                        {order.items.slice(0, 3).map((item: any, i: number) => (
                           <img
                             key={i}
-                            src={item.product.image}
+                            src={item.image}
                             alt=""
                             className="w-10 h-10 rounded-lg object-cover border-2 border-background bg-foreground/5 shadow-sm"
                           />
@@ -241,30 +260,45 @@ export default function Profile() {
             </div>
           )}
 
-          {activeTab === 'viewed' && (
-            <div>
-              {lastViewed.length === 0 ? (
+          {activeTab === 'favorites' && (
+            <div className="space-y-4">
+              {favorites.length === 0 ? (
                 <div className="text-center py-20 bg-card border border-border rounded-3xl p-8 shadow-sm">
-                  <Eye className="w-16 h-16 text-foreground/10 mx-auto mb-4" />
-                  <p className="text-muted-foreground text-lg">{language === 'ar' ? 'مفيش منتجات زرتها مؤخراً' : 'No recently viewed items'}</p>
+                  <Heart className="w-16 h-16 text-foreground/10 mx-auto mb-4" />
+                  <p className="text-muted-foreground text-lg mb-4">{language === 'ar' ? 'لسة معملتش أي منتجات مفضلة لحد دلوقتي' : 'No favorites yet'}</p>
+                  <Link
+                    to="/shop"
+                    className="inline-block px-6 py-3 rounded-full bg-[#6B46C1] text-white font-medium hover:opacity-90 transition-all shadow-md"
+                  >
+                    {language === 'ar' ? 'تصفح المنتجات' : 'Browse Products'}
+                  </Link>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {lastViewed.map((item) => (
+                  {favorites.map((item: any) => (
                     <Link key={item.id} to={`/product/${item.id}`} className="group block">
-                      <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-3">
+                      <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-foreground/5 border border-border/30 mb-3 relative">
                         <img
                           src={item.image}
                           alt={item.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            const newFavorites = favorites.filter((f: any) => f.id !== item.id)
+                            setFavorites(newFavorites)
+                            localStorage.setItem('favorites', JSON.stringify(newFavorites))
+                          }}
+                          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 dark:bg-black/90 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
                       </div>
                       <p className="text-sm font-bold text-foreground truncate group-hover:text-[#6B46C1] transition-colors">
                         {item.name}
                       </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {new Date(item.viewedAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}
-                      </p>
+                      <p className="text-sm font-bold text-[#6B46C1] mt-0.5">${item.price}</p>
                     </Link>
                   ))}
                 </div>

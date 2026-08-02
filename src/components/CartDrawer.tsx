@@ -15,18 +15,72 @@ export default function CartDrawer() {
   const [isOpen, setIsOpen] = useState(false)
   
   // Fetch cart from Supabase
-  const { data: cartItems, isLoading } = trpc.cart.get.useQuery(undefined, {
+  const { data: cartItems } = trpc.cart.get.useQuery(undefined, {
     enabled: !!user
   })
-  
-  const clearCart = trpc.cart.clear.useMutation()
-  const updateQuantity = trpc.cart.update.useMutation()
-  const removeItem = trpc.cart.remove.useMutation()
+
+  const utils = trpc.useContext()
+
+  const clearCart = trpc.cart.clear.useMutation({
+    onSuccess: () => {
+      utils.cart.get.invalidate()
+    }
+  })
+  const updateQuantity = trpc.cart.update.useMutation({
+    onSuccess: () => {
+      utils.cart.get.invalidate()
+    }
+  })
+  const removeItem = trpc.cart.remove.useMutation({
+    onSuccess: () => {
+      utils.cart.get.invalidate()
+    }
+  })
 
   const items = cartItems || []
+
+  // Fetch missing product data
+  const productIds = items.filter(item => !item.product).map(item => item.product_id)
+  const { data: products } = trpc.products.list.useQuery(undefined, {
+    enabled: productIds.length > 0
+  })
+
+  // Create a map of products by ID
+  const productMap = new Map((products || []).map(p => [p.id, p]))
+
+  // Merge product data into cart items
+  const itemsWithProducts = items.map(item => ({
+    ...item,
+    product: item.product || productMap.get(item.product_id)
+  }))
+
+  // Debug logging
+  useEffect(() => {
+    console.log('CartDrawer - cartItems:', cartItems)
+    console.log('CartDrawer - items:', items)
+    console.log('CartDrawer - itemsWithProducts:', itemsWithProducts)
+    console.log('CartDrawer - user:', user)
+    if (items.length > 0) {
+      console.log('CartDrawer - first item:', items[0])
+      console.log('CartDrawer - first item product:', items[0].product)
+    }
+  }, [cartItems, items, itemsWithProducts, user])
   const discount = 0 // TODO: Add wheel discount from Supabase
-  const totalPrice = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
-  const discountedPrice = items.reduce((acc, item) => acc + (item.product.price * (1 - item.product.discount / 100) * item.quantity), 0)
+
+  // Normalize product data and calculate prices safely
+  const totalPrice = itemsWithProducts.reduce((acc, item) => {
+    if (!item.product) return acc
+    const price = parseFloat(String(item.product.price || 0))
+    return acc + (price * item.quantity)
+  }, 0)
+
+  const discountedPrice = itemsWithProducts.reduce((acc, item) => {
+    if (!item.product) return acc
+    const price = parseFloat(String(item.product.price || 0))
+    const discountPercent = parseFloat(String(item.product.discount || 0))
+    return acc + (price * (1 - discountPercent / 100) * item.quantity)
+  }, 0)
+
   const finalPrice = discountedPrice * (1 - discount / 100)
 
   useEffect(() => {
@@ -45,7 +99,7 @@ export default function CartDrawer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsOpen(false)}
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] bg-foreground/60 backdrop-blur-sm"
           />
         )}
       </AnimatePresence>
@@ -66,7 +120,7 @@ export default function CartDrawer() {
                 <ShoppingBag className="w-5 h-5 text-[#6B46C1]" />
                 <h2 className="text-lg font-bold text-foreground">{t.cartTitle}</h2>
                 <span className="px-2 py-0.5 rounded-full bg-[#6B46C1]/20 text-[#6B46C1] text-xs font-bold">
-                  {t.cartItemsCount.replace('{count}', String(items.length))}
+                  {t.cartItemsCount.replace('{count}', String(itemsWithProducts.length))}
                 </span>
               </div>
               <button
@@ -93,7 +147,7 @@ export default function CartDrawer() {
                 </div>
               ) : (
                 <AnimatePresence mode="popLayout">
-                  {items.map((item) => (
+                  {itemsWithProducts.filter(item => item.product).map((item) => (
                     <motion.div
                       key={item.product.id}
                       layout
@@ -131,7 +185,7 @@ export default function CartDrawer() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-foreground">
-                              ${(item.product.price * (1 - item.product.discount / 100) * item.quantity).toFixed(2)}
+                              ${(parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity).toFixed(2)}
                             </span>
                             <button
                               onClick={() => removeItem.mutate(item.id)}
@@ -149,7 +203,7 @@ export default function CartDrawer() {
             </div>
 
             {/* Footer */}
-            {items.length > 0 && (
+            {itemsWithProducts.length > 0 && (
               <div className="p-6 border-t border-border space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">

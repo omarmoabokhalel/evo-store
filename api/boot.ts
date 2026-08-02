@@ -10,6 +10,7 @@ const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
 app.use("/api/trpc/*", async (c) => {
+  console.log('TRPC Request:', c.req.method, c.req.url);
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
@@ -17,7 +18,10 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
-app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
+app.all("/api/*", (c) => {
+  console.log('404 Request:', c.req.method, c.req.url);
+  return c.json({ error: "Not Found" }, 404);
+});
 
 export default app;
 

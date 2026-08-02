@@ -50,11 +50,11 @@ export default function Features() {
   ]
 
   return (
-    <section ref={ref} className="relative py-32 bg-background border-t border-border transition-colors duration-300">
+    <section ref={ref} className="relative py-16 sm:py-20 md:py-32 bg-background border-t border-border transition-colors duration-300">
       {/* Background Glows */}
       <div className="absolute inset-0 opacity-20 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#6B46C1]/20 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#3B82F6]/20 rounded-full blur-[128px]" />
+        <div className="absolute top-1/4 left-1/4 w-48 sm:w-72 md:w-96 h-48 sm:h-72 md:h-96 bg-[#6B46C1]/20 rounded-full blur-[80px] sm:blur-[100px] md:blur-[128px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-48 sm:w-72 md:w-96 h-48 sm:h-72 md:h-96 bg-[#3B82F6]/20 rounded-full blur-[80px] sm:blur-[100px] md:blur-[128px]" />
       </div>
 
       <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -63,39 +63,39 @@ export default function Features() {
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8 }}
-          className="text-center mb-20"
+          className="text-center mb-10 sm:mb-12 md:mb-16 lg:mb-20"
         >
-          <h2 className="text-[clamp(2rem,5vw,4rem)] font-bold tracking-[-0.02em] mb-4 text-foreground">
+          <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] sm:text-[clamp(1.75rem,4.5vw,3rem)] md:text-[clamp(2rem,5vw,4rem)] font-bold tracking-[-0.02em] mb-3 sm:mb-4 text-foreground">
             {language === 'ar' ? (
               <>ليه تختار <span className="text-gradient">EVO</span>؟</>
             ) : (
               <>Why <span className="text-gradient">EVO</span>?</>
             )}
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto">
             {t.whyEvoDesc}
           </p>
         </motion.div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
           {features.map((feature, i) => (
             <motion.div
               key={feature.title}
               initial={{ opacity: 0, y: 30 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: i * 0.1 }}
-              className="group relative p-8 rounded-3xl bg-card border border-border hover:border-primary/20 hover:bg-foreground/[0.02] hover:shadow-lg transition-all duration-500 overflow-hidden"
+              className="group relative p-5 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl bg-card border border-border hover:border-primary/20 hover:bg-foreground/[0.02] hover:shadow-lg transition-all duration-500 overflow-hidden"
             >
               {/* Glow on hover */}
-              <div className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500`} />
+              <div className={`absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500`} />
 
-              <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.gradient} mb-6 shadow-sm`}>
-                <feature.icon className="w-7 h-7 text-white" />
+              <div className={`inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br ${feature.gradient} mb-4 sm:mb-6 shadow-sm`}>
+                <feature.icon className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-white" />
               </div>
 
-              <h3 className="text-xl font-bold mb-3 text-foreground">{feature.title}</h3>
-              <p className="text-muted-foreground leading-relaxed text-sm">{feature.description}</p>
+              <h3 className="text-base sm:text-lg md:text-xl font-bold mb-2 sm:mb-3 text-foreground">{feature.title}</h3>
+              <p className="text-muted-foreground leading-relaxed text-xs sm:text-sm">{feature.description}</p>
             </motion.div>
           ))}
         </div>

@@ -32,9 +32,27 @@ export default function ProductDetail() {
   const { user } = useSupabaseAuth()
 
   const { id } = useParams<{ id: string }>()
-  const productId = Number(id)
-  const { data: product, isLoading } = trpc.products.byId.useQuery({ id: productId })
-  const addToCart = trpc.cart.add.useMutation()
+  const { data: product, isLoading, error } = trpc.products.byId.useQuery({ id: id || '' })
+  const utils = trpc.useContext()
+  const addToCart = trpc.cart.add.useMutation({
+    onSuccess: () => {
+      // Invalidate cart query to refresh cart items
+      utils.cart.get.invalidate()
+    }
+  })
+
+  // Debug logging
+  useEffect(() => {
+    console.log('ProductDetail - ID:', id)
+    console.log('ProductDetail - Product:', product)
+    console.log('ProductDetail - Error:', error)
+    console.log('ProductDetail - IsLoading:', isLoading)
+  }, [id, product, error, isLoading])
+
+  // Additional debug for query status
+  useEffect(() => {
+    console.log('Query status:', { isLoading, error, isSuccess: !isLoading && !error && !!product })
+  }, [isLoading, error, product])
 
   const [selectedColor, setSelectedColor] = useState('')
   const [selectedSize, setSelectedSize] = useState('')
@@ -44,28 +62,83 @@ export default function ProductDetail() {
   const [showAITryOn, setShowAITryOn] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
 
+  // Normalize product data from backend snake_case to frontend camelCase
+  const normalizedProduct = product ? {
+    ...product,
+    isNew: product.isNew ?? product.is_new ?? false,
+    isSpecial: product.isSpecial ?? product.is_special ?? false,
+    designType: product.designType ?? product.design_type ?? '',
+  } : null
+
+  // Check if product is in favorites
+  useEffect(() => {
+    if (normalizedProduct) {
+      const saved = localStorage.getItem('favorites')
+      const favorites = saved ? JSON.parse(saved) : []
+      setIsWishlisted(favorites.some((f: any) => f.id === normalizedProduct.id))
+    }
+  }, [normalizedProduct])
+
+  // Toggle favorite
+  const toggleFavorite = () => {
+    if (!normalizedProduct) return
+
+    const saved = localStorage.getItem('favorites')
+    let favorites = saved ? JSON.parse(saved) : []
+
+    if (isWishlisted) {
+      // Remove from favorites
+      favorites = favorites.filter((f: any) => f.id !== normalizedProduct.id)
+      toast.success(language === 'ar' ? 'تمت الإزالة من المفضلة' : 'Removed from favorites')
+    } else {
+      // Add to favorites
+      favorites.push({
+        id: normalizedProduct.id,
+        name: normalizedProduct.name,
+        image: normalizedProduct.image,
+        price: normalizedProduct.price,
+      })
+      toast.success(language === 'ar' ? 'تمت الإضافة للمفضلة' : 'Added to favorites')
+    }
+
+    localStorage.setItem('favorites', JSON.stringify(favorites))
+    setIsWishlisted(!isWishlisted)
+  }
+
   // Set default selections
   useEffect(() => {
-    if (product) {
-      setSelectedColor(product.colors?.[0] || '')
-      setSelectedSize(product.sizes?.[Math.floor((product.sizes?.length || 0) / 2)] || '')
+    if (normalizedProduct) {
+      setSelectedColor(normalizedProduct.colors?.[0] || '')
+      setSelectedSize(normalizedProduct.sizes?.[Math.floor((normalizedProduct.sizes?.length || 0) / 2)] || '')
     }
-  }, [product])
+  }, [normalizedProduct])
+
+  const discountedPrice = normalizedProduct ? parseFloat(normalizedProduct.price.toString()) * (1 - (normalizedProduct.discount || 0) / 100) : 0
+  const { data: relatedProducts = [] } = trpc.products.byCategory.useQuery(
+    { category: normalizedProduct?.category || '' },
+    { enabled: !!normalizedProduct }
+  )
+  const filteredRelatedProducts = relatedProducts.filter((p) => p.id !== normalizedProduct?.id).slice(0, 4)
 
   if (isLoading) {
     return (
       <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
-        <div className="w-12 h-12 border-4 border-[#6B46C1]/20 border-t-[#6B46C1] rounded-full animate-spin" />
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-[#6B46C1]/20 border-t-[#6B46C1] rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</p>
+        </div>
       </main>
     )
   }
 
-  if (!product) {
+  if (error) {
     return (
       <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4 text-foreground">{t.productNotFound}</h1>
-          <Link to="/shop" className="text-[#6B46C1] hover:underline font-bold">
+        <div className="text-center bg-card border border-border p-8 rounded-2xl max-w-md">
+          <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-2 text-foreground">{language === 'ar' ? 'حدث خطأ' : 'Error'}</h1>
+          <p className="text-muted-foreground mb-4">{error.message || (language === 'ar' ? 'فشل تحميل المنتج' : 'Failed to load product')}</p>
+          <Link to="/shop" className="inline-block px-6 py-3 rounded-full bg-[#6B46C1] text-white font-medium hover:opacity-90 transition-all">
             {t.backToShop}
           </Link>
         </div>
@@ -73,33 +146,47 @@ export default function ProductDetail() {
     )
   }
 
-  const discountedPrice = parseFloat(product.price.toString()) * (1 - (product.discount || 0) / 100)
-  const { data: relatedProducts = [] } = trpc.products.byCategory.useQuery(
-    { category: product.category },
-    { enabled: !!product }
-  )
-  const filteredRelatedProducts = relatedProducts.filter((p) => p.id !== product.id).slice(0, 4)
+  if (!normalizedProduct) {
+    return (
+      <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
+        <div className="text-center bg-card border border-border p-8 rounded-2xl max-w-md">
+          <h1 className="text-3xl font-bold mb-4 text-foreground">{t.productNotFound}</h1>
+          <Link to="/shop" className="inline-block px-6 py-3 rounded-full bg-[#6B46C1] text-white font-medium hover:opacity-90 transition-all">
+            {t.backToShop}
+          </Link>
+        </div>
+      </main>
+    )
+  }
 
   const handleAddToCart = async () => {
     if (!selectedSize || !selectedColor) {
       toast.error(language === 'ar' ? 'من فضلك اختار المقاس واللون أولاً!' : 'Please select size and color')
       return
     }
-    
+
     if (!user) {
       toast.error(language === 'ar' ? 'يرجى تسجيل الدخول أولاً' : 'Please login first')
       return
     }
 
+    console.log('Adding to cart:', {
+      productId: normalizedProduct.id,
+      quantity,
+      size: selectedSize,
+      color: selectedColor,
+    })
+
     try {
       await addToCart.mutateAsync({
-        productId: product.id,
+        productId: String(normalizedProduct.id),
         quantity,
         size: selectedSize,
         color: selectedColor,
       })
       toast.success(language === 'ar' ? 'تمت الإضافة للشنطة بنجاح! 🛍️' : 'Added to cart successfully!')
     } catch (error: any) {
+      console.error('Add to cart error:', error)
       toast.error(error.message || (language === 'ar' ? 'فشل الإضافة للشنطة' : 'Failed to add to cart'))
     }
   }
@@ -107,8 +194,8 @@ export default function ProductDetail() {
   const handleShare = async () => {
     try {
       await navigator.share({
-        title: product.name,
-        text: product.description,
+        title: normalizedProduct.name,
+        text: normalizedProduct.description,
         url: window.location.href,
       })
     } catch {
@@ -150,11 +237,11 @@ export default function ProductDetail() {
           {language === 'ar' ? <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
           <Link to="/shop" className="hover:text-foreground transition-colors font-medium shrink-0">{t.navShop}</Link>
           {language === 'ar' ? <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
-          <Link to={`/shop/${product.category}`} className="hover:text-foreground transition-colors capitalize font-medium shrink-0">
-            {getCategoryLabel(product.category)}
+          <Link to={`/shop/${normalizedProduct.category}`} className="hover:text-foreground transition-colors capitalize font-medium shrink-0">
+            {getCategoryLabel(normalizedProduct.category)}
           </Link>
           {language === 'ar' ? <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
-          <span className="text-foreground truncate max-w-[150px] sm:max-w-[200px] font-bold">{product.name}</span>
+          <span className="text-foreground truncate max-w-[150px] sm:max-w-[200px] font-bold">{normalizedProduct.name}</span>
         </nav>
 
         {/* Product Grid */}
@@ -167,35 +254,37 @@ export default function ProductDetail() {
           >
             <div className="relative aspect-[3/4] rounded-3xl overflow-hidden bg-foreground/5 border border-border/30">
               <img
-                src={product.images[activeImage] || product.image}
-                alt={product.name}
+                src={(normalizedProduct.images && normalizedProduct.images[activeImage]) || normalizedProduct.image}
+                alt={normalizedProduct.name}
                 className="w-full h-full object-cover"
               />
-              {(product.discount || 0) > 0 && (
+              {(normalizedProduct.discount || 0) > 0 && (
                 <span className="absolute top-4 start-4 px-4 py-2 rounded-full bg-[#FF2A2A] text-white font-bold text-sm shadow-md">
-                  -{product.discount}% {t.off}
+                  -{normalizedProduct.discount}% {t.off}
                 </span>
               )}
-              {(product.stock || 0) < 20 && (
-                <div className="absolute bottom-4 start-4 flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm shadow-sm text-white">
+              {(normalizedProduct.stock || 0) < 20 && (
+                <div className="absolute bottom-4 start-4 flex items-center gap-2 px-4 py-2 rounded-full bg-foreground/60 backdrop-blur-sm shadow-sm text-background">
                   <AlertTriangle className="w-4 h-4 text-[#FBBF24]" />
-                  <span className="text-sm font-medium">{t.inStockLeft.replace('{count}', String(product.stock || 0))}</span>
+                  <span className="text-sm font-medium">{t.inStockLeft.replace('{count}', String(normalizedProduct.stock || 0))}</span>
                 </div>
               )}
             </div>
-            <div className="flex gap-3">
-              {product.images?.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActiveImage(i)}
-                  className={`w-20 h-20 rounded-xl overflow-hidden border-2 bg-foreground/5 transition-all ${
-                    activeImage === i ? 'border-[#6B46C1] scale-95 shadow-sm' : 'border-transparent'
-                  }`}
-                >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
+            {normalizedProduct.images && normalizedProduct.images.length > 0 && (
+              <div className="flex gap-3">
+                {normalizedProduct.images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImage(i)}
+                    className={`w-20 h-20 rounded-xl overflow-hidden border-2 bg-foreground/5 transition-all ${
+                      activeImage === i ? 'border-[#6B46C1] scale-95 shadow-sm' : 'border-transparent'
+                    }`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
           </motion.div>
 
           {/* Info */}
@@ -207,29 +296,29 @@ export default function ProductDetail() {
             {/* Header */}
             <div>
               <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-                {product.isNew && (
+                {normalizedProduct.isNew && (
                   <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#6B46C1]/20 text-[#6B46C1] text-[10px] sm:text-xs font-bold uppercase tracking-wider">
                     {language === 'ar' ? 'جديد' : 'New Arrival'}
                   </span>
                 )}
-                {product.isSpecial && (
+                {normalizedProduct.isSpecial && (
                   <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FBBF24]/20 text-[#FBBF24] text-[10px] sm:text-xs font-bold uppercase tracking-wider">
                     {language === 'ar' ? 'تصميم مميز' : 'Special Design'}
                   </span>
                 )}
               </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-[-0.02em] text-foreground mb-2 sm:mb-3">{product.name}</h1>
-              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">{product.description}</p>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-[-0.02em] text-foreground mb-2 sm:mb-3">{normalizedProduct.name}</h1>
+              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">{normalizedProduct.description}</p>
             </div>
 
             {/* Price */}
             <div className="flex items-center gap-2 sm:gap-4">
               <span className="text-2xl sm:text-3xl font-bold text-gradient">${discountedPrice.toFixed(2)}</span>
-              {(product.discount || 0) > 0 && (
+              {(normalizedProduct.discount || 0) > 0 && (
                 <>
-                  <span className="text-lg sm:text-xl text-muted-foreground line-through">${parseFloat(product.price.toString()).toFixed(2)}</span>
+                  <span className="text-lg sm:text-xl text-muted-foreground line-through">${parseFloat(normalizedProduct.price.toString()).toFixed(2)}</span>
                   <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FF2A2A]/20 text-[#FF2A2A] text-xs sm:text-sm font-bold shadow-sm">
-                    {t.saveAmount.replace('{amount}', `$${(parseFloat(product.price.toString()) - discountedPrice).toFixed(2)}`)}
+                    {t.saveAmount.replace('{amount}', `$${(parseFloat(normalizedProduct.price.toString()) - discountedPrice).toFixed(2)}`)}
                   </span>
                 </>
               )}
@@ -241,7 +330,7 @@ export default function ProductDetail() {
                 <h3 className="font-semibold text-foreground">{t.color}: <span className="text-muted-foreground font-normal">{getColorName(selectedColor)}</span></h3>
               </div>
               <div className="flex gap-3">
-                {product.colors?.map((color) => (
+                {normalizedProduct.colors?.map((color) => (
                   <button
                     key={color}
                     onClick={() => setSelectedColor(color)}
@@ -275,7 +364,7 @@ export default function ProductDetail() {
                 </button>
               </div>
               <div className="flex gap-2">
-                {product.sizes?.map((size) => (
+                {normalizedProduct.sizes?.map((size) => (
                   <button
                     key={size}
                     onClick={() => setSelectedSize(size)}
@@ -302,7 +391,7 @@ export default function ProductDetail() {
                 </button>
                 <span className="w-8 sm:w-10 text-center font-bold text-foreground text-base sm:text-lg">{quantity}</span>
                 <button
-                  onClick={() => setQuantity(Math.min(product.stock || 100, quantity + 1))}
+                  onClick={() => setQuantity(Math.min(normalizedProduct.stock || 100, quantity + 1))}
                   className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center text-foreground transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -319,7 +408,7 @@ export default function ProductDetail() {
 
               <div className="flex gap-2 justify-center">
                 <button
-                  onClick={() => setIsWishlisted(!isWishlisted)}
+                  onClick={toggleFavorite}
                   className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all border border-border shadow-sm ${
                     isWishlisted
                       ? 'bg-[#FF2A2A]/20 text-[#FF2A2A] border-transparent'
@@ -399,7 +488,7 @@ export default function ProductDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[60] bg-foreground/80 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -482,7 +571,7 @@ export default function ProductDetail() {
       <AnimatePresence>
         {showAITryOn && (
           <AITryOnModal
-            product={product}
+            product={normalizedProduct}
             selectedColor={selectedColor}
             onClose={() => setShowAITryOn(false)}
             t={t}
@@ -494,7 +583,7 @@ export default function ProductDetail() {
 }
 
 function AITryOnModal({
-  product,
+  product: normalizedProduct,
   selectedColor,
   onClose,
   t,
@@ -529,7 +618,7 @@ function AITryOnModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] bg-foreground/80 backdrop-blur-sm flex items-center justify-center p-4"
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
@@ -593,13 +682,13 @@ function AITryOnModal({
                 <div className="relative w-full h-full">
                   <img src={uploadedImage} alt="Your photo" className="w-full h-full object-cover" />
                   {/* Overlay design preview */}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <div className="absolute inset-0 flex items-center justify-center bg-foreground/30">
                     <div
                       className="w-48 h-60 rounded-xl border-2 border-[#6B46C1]/50 flex flex-col items-center justify-center p-4 backdrop-blur-xs"
                       style={{ backgroundColor: selectedColor + '40' }}
                     >
                       <img
-                        src={product.image}
+                        src={normalizedProduct.image}
                         alt="Design"
                         className="w-32 h-40 object-contain opacity-85 mix-blend-overlay"
                       />
@@ -609,7 +698,7 @@ function AITryOnModal({
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full">
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  <img src={normalizedProduct.image} alt={normalizedProduct.name} className="w-full h-full object-cover" />
                 </div>
               )}
             </div>

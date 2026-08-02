@@ -16,9 +16,9 @@ export const translations = {
 
     // Hero Section
     heroTitle: "EVO",
-    heroSubtitle: "الاستايل مش اختياري… ده هوية",
-    heroDescription: "مش بنبيع تيشيرتات، بنبيع موقف. تصاميم حصرية مطبوعة بجودة عالية — لأن اللي بتلبسه بيقول عنك أكتر من أي كلام.",
-    exploreCollection: "شوف الكولكشن",
+    heroSubtitle: "إلبس اللي يعبر عنك. كن على طبيعتك.",
+    heroDescription: "كل تصميم له حكاية. خامات بجودة عالية، وتفاصيل معمولة بعناية، عشان تلبس حاجة تشبه شخصيتك وتخليك مميز في كل مرة.",
+    exploreCollection: "اكتشف الكولكشن",
     aiStudio: "استوديو الـ AI",
     scroll: "انزل تحت",
 
@@ -186,8 +186,8 @@ export const translations = {
 
     // Hero Section
     heroTitle: "EVO",
-    heroSubtitle: "Style isn't a choice... it's an identity",
-    heroDescription: "We don’t sell T-shirts—we sell a statement. Exclusive designs printed in high quality—because what you wear says more about you than any words ever could.",
+    heroSubtitle: "Wear what moves you. Be who you are.",
+    heroDescription: "Every design tells a story. Crafted with premium quality, built for everyday confidence, and made for people who choose to stand out—not fit in.",
     exploreCollection: "Explore Collection",
     aiStudio: "AI Studio",
     scroll: "Scroll",
