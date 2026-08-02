@@ -21,7 +21,8 @@ import {
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
-import { trpc } from '@/providers/trpc'
+import { useQuery } from '@tanstack/react-query'
+import { getOrdersByUserId } from '@/services/orders'
 
 export default function Profile() {
   const { language } = useLanguageStore()
@@ -32,9 +33,7 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<'orders' | 'favorites' | 'settings'>('orders')
 
   // Fetch orders from Supabase
-  const { data: orders = [] } = trpc.orders.myOrders.useQuery(undefined, {
-    enabled: !!user
-  })
+  const { data: orders = [] } = useQuery({ queryKey: ['orders', user?.id], queryFn: () => getOrdersByUserId(user?.id || ''), enabled: !!user })
 
   // Fetch favorites from localStorage
   const [favorites, setFavorites] = useState<any[]>(() => {

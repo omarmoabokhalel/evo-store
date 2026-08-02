@@ -1,4 +1,3 @@
-import devServer from "@hono/vite-dev-server"
 import path from "path"
 const __dirname = import.meta.dirname
 import react from "@vitejs/plugin-react"
@@ -11,12 +10,6 @@ export default defineConfig({
     inspectAttr(), react()],
   server: {
     port: 3000,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      }
-    }
   },
   resolve: {
     alias: {
@@ -28,7 +21,7 @@ export default defineConfig({
   },
   envDir: path.resolve(__dirname),
   build: {
-    outDir: path.resolve(__dirname, "dist/public"),
+    outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
   },
 });

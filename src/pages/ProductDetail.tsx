@@ -21,7 +21,9 @@ import {
 import { sizeChart, colorOptions } from '@/data/products'
 import type { Product } from '@/data/products'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
-import { trpc } from '@/providers/trpc'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getProductById, getProductsByCategory } from '@/services/products'
+import { addCartItem } from '@/services/cart'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { toast } from 'sonner'
@@ -32,14 +34,9 @@ export default function ProductDetail() {
   const { user } = useSupabaseAuth()
 
   const { id } = useParams<{ id: string }>()
-  const { data: product, isLoading, error } = trpc.products.byId.useQuery({ id: id || '' })
-  const utils = trpc.useContext()
-  const addToCart = trpc.cart.add.useMutation({
-    onSuccess: () => {
-      // Invalidate cart query to refresh cart items
-      utils.cart.get.invalidate()
-    }
-  })
+  const queryClient = useQueryClient()
+  const { data: product, isLoading, error } = useQuery({ queryKey: ['product', id], queryFn: () => getProductById(id || ''), enabled: !!id })
+  const addToCart = useMutation({ mutationFn: addCartItem, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) })
 
   // Debug logging
   useEffect(() => {
@@ -114,10 +111,7 @@ export default function ProductDetail() {
   }, [normalizedProduct])
 
   const discountedPrice = normalizedProduct ? parseFloat(normalizedProduct.price.toString()) * (1 - (normalizedProduct.discount || 0) / 100) : 0
-  const { data: relatedProducts = [] } = trpc.products.byCategory.useQuery(
-    { category: normalizedProduct?.category || '' },
-    { enabled: !!normalizedProduct }
-  )
+  const { data: relatedProducts = [] } = useQuery({ queryKey: ['products', 'category', normalizedProduct?.category || ''], queryFn: () => getProductsByCategory(normalizedProduct?.category || ''), enabled: !!normalizedProduct })
   const filteredRelatedProducts = relatedProducts.filter((p) => p.id !== normalizedProduct?.id).slice(0, 4)
 
   if (isLoading) {
@@ -179,6 +173,7 @@ export default function ProductDetail() {
 
     try {
       await addToCart.mutateAsync({
+        userId: user.id,
         productId: String(normalizedProduct.id),
         quantity,
         size: selectedSize,

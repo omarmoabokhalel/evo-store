@@ -1,5 +1,6 @@
 import { useRef, useEffect, useMemo, Suspense } from 'react'
 import { useLanguageStore } from '@/stores/languageStore'
+import { useThemeStore } from '@/stores/themeStore'
 import { translations } from '@/data/translations'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useTexture, Float } from '@react-three/drei'
@@ -198,6 +199,7 @@ function Particles({ count }: { count: number }) {
 
 export default function Hero() {
   const { language } = useLanguageStore()
+  const { isDark } = useThemeStore()
   const t = translations[language]
 
   return (
@@ -216,8 +218,8 @@ export default function Hero() {
       </div>
 
       {/* Gradient Overlays */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background pointer-events-none" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-transparent to-background/80 pointer-events-none" />
+      <div className={`absolute inset-0 bg-gradient-to-b ${isDark ? 'from-background via-transparent to-background' : 'from-background/60 via-transparent to-background/60'} pointer-events-none`} />
+      <div className={`absolute inset-0 bg-gradient-to-r ${isDark ? 'from-background/80 via-transparent to-background/80' : 'from-background/50 via-transparent to-background/50'} pointer-events-none`} />
 
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col items-center justify-center px-4">
@@ -228,27 +230,27 @@ export default function Hero() {
           className="text-center"
         >
           <h1
-            className="text-[clamp(3.5rem,8vw,7rem)] sm:text-[clamp(3.5rem,8vw,7rem)] md:text-[clamp(5rem,7vw,8rem)] font-bold tracking-[-0.05em] leading-[0.9] mb-4 sm:mb-6 text-white"
+            className={`text-[clamp(3.5rem,8vw,7rem)] sm:text-[clamp(3.5rem,8vw,7rem)] md:text-[clamp(5rem,7vw,8rem)] font-bold tracking-[-0.05em] leading-[0.9] mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-foreground'}`}
           >
             <span className="block">{t.heroTitle}</span>
             <span className="block text-gradient text-[clamp(1.5rem,4.5vw,2rem)] sm:text-[clamp(1.2rem,4.5vw,2.5rem)] md:text-[clamp(1.5rem,5vw,4rem)] tracking-[-0.02em] font-bold mt-1 sm:mt-2 leading-[1.4] pb-1 sm:pb-2">
               {t.heroSubtitle}
             </span>
           </h1>
-          <p className="text-white/60 text-sm sm:text-base md:text-lg lg:text-xl max-w-xl mx-auto mb-6 sm:mb-8 md:mb-10 leading-relaxed px-2">
+          <p className={`${isDark ? 'text-white/60' : 'text-muted-foreground'} text-sm sm:text-base md:text-lg lg:text-xl max-w-xl mx-auto mb-6 sm:mb-8 md:mb-10 leading-relaxed px-2`}>
             {t.heroDescription}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4">
             <Link
               to="/shop"
-              className="group flex items-center gap-2 sm:gap-3 px-6 py-3 sm:px-8 sm:py-4 rounded-full bg-white text-black font-bold text-sm sm:text-base hover:scale-105 transition-transform duration-300 w-full sm:w-auto justify-center"
+              className={`group flex items-center gap-2 sm:gap-3 px-6 py-3 sm:px-8 sm:py-4 rounded-full font-bold text-sm sm:text-base hover:scale-105 transition-transform duration-300 w-full sm:w-auto justify-center ${isDark ? 'bg-white text-black' : 'bg-foreground text-background'}`}
             >
               {t.exploreCollection}
               <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform rtl:rotate-180" />
             </Link>
             <Link
               to="/customizer"
-              className="flex items-center gap-2 sm:gap-3 px-6 py-3 sm:px-8 sm:py-4 rounded-full glass text-white font-bold text-sm sm:text-base hover:bg-white/10 transition-all duration-300 w-full sm:w-auto justify-center"
+              className={`flex items-center gap-2 sm:gap-3 px-6 py-3 sm:px-8 sm:py-4 rounded-full font-bold text-sm sm:text-base hover:bg-white/10 transition-all duration-300 w-full sm:w-auto justify-center ${isDark ? 'glass text-white' : 'bg-foreground/10 text-foreground border border-border'}`}
             >
               {t.aiStudio}
             </Link>
@@ -267,8 +269,8 @@ export default function Hero() {
             transition={{ repeat: Infinity, duration: 2 }}
             className="flex flex-col items-center gap-2"
           >
-            <span className="text-white/40 text-xs uppercase tracking-[0.2em]">{t.scroll}</span>
-            <ChevronDown className="w-5 h-5 text-white/40" />
+            <span className={`${isDark ? 'text-white/40' : 'text-muted-foreground'} text-xs uppercase tracking-[0.2em]`}>{t.scroll}</span>
+            <ChevronDown className={`w-5 h-5 ${isDark ? 'text-white/40' : 'text-muted-foreground'}`} />
           </motion.div>
         </motion.div>
       </div>

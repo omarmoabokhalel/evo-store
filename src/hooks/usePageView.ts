@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router'
-import { trpc } from '@/providers/trpc'
+import { useMutation } from '@tanstack/react-query'
+import { trackPageView } from '@/services/analytics'
 
 export function usePageView() {
   const location = useLocation()
-  const trackPageView = trpc.analytics.track.useMutation()
+  const trackPageViewMutation = useMutation({ mutationFn: trackPageView })
 
   useEffect(() => {
     // Generate a session ID if not exists
@@ -16,7 +17,7 @@ export function usePageView() {
 
     // Track page view
     console.log('Tracking page view:', location.pathname)
-    trackPageView.mutate({
+    trackPageViewMutation.mutate({
       page: location.pathname,
       sessionId,
     })

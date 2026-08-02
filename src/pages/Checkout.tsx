@@ -13,7 +13,10 @@ import {
   User,
 } from 'lucide-react'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
-import { trpc } from '@/providers/trpc'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getCartItems, clearCart } from '@/services/cart'
+import { createOrder } from '@/services/orders'
+import { getProducts } from '@/services/products'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { toast } from 'sonner'
@@ -40,20 +43,17 @@ export default function Checkout() {
     return colorMap[originalName] || originalName;
   };
   const { user } = useSupabaseAuth()
-  const { data: cartItems } = trpc.cart.get.useQuery(undefined, {
-    enabled: !!user
-  })
-  const createOrder = trpc.orders.create.useMutation()
-  const clearCart = trpc.cart.clear.useMutation()
+  const queryClient = useQueryClient()
+  const { data: cartItems } = useQuery({ queryKey: ['cart'], queryFn: () => getCartItems(user?.id || ''), enabled: !!user })
+  const createOrderMutation = useMutation({ mutationFn: createOrder })
+  const clearCartMutation = useMutation({ mutationFn: () => clearCart(user?.id || '') })
   const navigate = useNavigate()
 
   const items = cartItems || []
 
   // Fetch missing product data
   const productIds = items.filter(item => !item.product).map(item => item.product_id)
-  const { data: products } = trpc.products.list.useQuery(undefined, {
-    enabled: productIds.length > 0
-  })
+  const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts, enabled: productIds.length > 0 })
 
   // Create a map of products by ID
   const productMap = new Map((products || []).map(p => [p.id, p]))
@@ -101,7 +101,8 @@ export default function Checkout() {
 
     try {
       console.log('Creating order with payment method:', formData.paymentMethod)
-      const order = await createOrder.mutateAsync({
+      const order = await createOrderMutation.mutateAsync({
+        userId: user?.id || '',
         total,
         paymentMethod: formData.paymentMethod,
         address: `${formData.address}, ${formData.city}, ${formData.postalCode}`,
@@ -117,7 +118,7 @@ export default function Checkout() {
         })),
       })
 
-      await clearCart.mutateAsync()
+      await clearCartMutation.mutateAsync()
 
       toast.success(language === 'ar' ? 'تم تأكيد طلبك بنجاح! 🎉' : 'Order placed successfully!')
 

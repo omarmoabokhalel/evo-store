@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
-import { trpc } from '@/providers/trpc'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getCartItems, updateCartItem, removeCartItem, clearCart } from '@/services/cart'
+import { getProducts } from '@/services/products'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
@@ -14,36 +16,20 @@ export default function CartDrawer() {
 
   const [isOpen, setIsOpen] = useState(false)
   
+  const queryClient = useQueryClient()
+
   // Fetch cart from Supabase
-  const { data: cartItems } = trpc.cart.get.useQuery(undefined, {
-    enabled: !!user
-  })
+  const { data: cartItems } = useQuery({ queryKey: ['cart'], queryFn: () => getCartItems(user?.id || ''), enabled: !!user })
 
-  const utils = trpc.useContext()
-
-  const clearCart = trpc.cart.clear.useMutation({
-    onSuccess: () => {
-      utils.cart.get.invalidate()
-    }
-  })
-  const updateQuantity = trpc.cart.update.useMutation({
-    onSuccess: () => {
-      utils.cart.get.invalidate()
-    }
-  })
-  const removeItem = trpc.cart.remove.useMutation({
-    onSuccess: () => {
-      utils.cart.get.invalidate()
-    }
-  })
+  const clearCartMutation = useMutation({ mutationFn: () => clearCart(user?.id || ''), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) })
+  const updateQuantityMutation = useMutation({ mutationFn: ({ id, quantity }: { id: string, quantity: number }) => updateCartItem(id, quantity), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) })
+  const removeItemMutation = useMutation({ mutationFn: removeCartItem, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) })
 
   const items = cartItems || []
 
   // Fetch missing product data
   const productIds = items.filter(item => !item.product).map(item => item.product_id)
-  const { data: products } = trpc.products.list.useQuery(undefined, {
-    enabled: productIds.length > 0
-  })
+  const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts, enabled: productIds.length > 0 })
 
   // Create a map of products by ID
   const productMap = new Map((products || []).map(p => [p.id, p]))
@@ -170,14 +156,14 @@ export default function CartDrawer() {
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-2 bg-foreground/5 border border-border/50 rounded-full p-1">
                             <button
-                              onClick={() => updateQuantity.mutate({ id: item.id, quantity: item.quantity - 1 })}
+                              onClick={() => updateQuantityMutation.mutate({ id: item.id, quantity: item.quantity - 1 })}
                               className="w-7 h-7 rounded-full bg-background hover:bg-foreground/5 flex items-center justify-center text-foreground transition-colors"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
                             <span className="text-sm font-bold w-6 text-center text-foreground">{item.quantity}</span>
                             <button
-                              onClick={() => updateQuantity.mutate({ id: item.id, quantity: item.quantity + 1 })}
+                              onClick={() => updateQuantityMutation.mutate({ id: item.id, quantity: item.quantity + 1 })}
                               className="w-7 h-7 rounded-full bg-background hover:bg-foreground/5 flex items-center justify-center text-foreground transition-colors"
                             >
                               <Plus className="w-3 h-3" />
@@ -188,7 +174,7 @@ export default function CartDrawer() {
                               ${(parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity).toFixed(2)}
                             </span>
                             <button
-                              onClick={() => removeItem.mutate(item.id)}
+                              onClick={() => removeItemMutation.mutate(item.id)}
                               className="p-1.5 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all border border-transparent hover:border-red-500/20"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -238,7 +224,7 @@ export default function CartDrawer() {
                 </Link>
 
                 <button
-                  onClick={() => clearCart.mutate()}
+                  onClick={() => clearCartMutation.mutate()}
                   className="w-full py-2 text-sm text-red-500/80 hover:text-red-500 font-bold hover:underline transition-colors"
                 >
                   {t.clearCart}

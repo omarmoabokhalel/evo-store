@@ -4,7 +4,8 @@ import { motion, useInView } from 'framer-motion'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
-import { trpc } from '@/providers/trpc'
+import { useQuery } from '@tanstack/react-query'
+import { getProducts } from '@/services/products'
 
 export default function NewArrivals() {
   const ref = useRef(null)
@@ -13,7 +14,7 @@ export default function NewArrivals() {
   const t = translations[language]
   
   // Fetch products from Supabase
-  const { data: supabaseProducts = [] } = trpc.products.list.useQuery()
+  const { data: supabaseProducts = [] } = useQuery({ queryKey: ['products'], queryFn: getProducts })
   
   // Filter new products from Supabase only
   const newProducts = supabaseProducts.filter((p) => p.is_new || p.isNew).slice(0, 6)

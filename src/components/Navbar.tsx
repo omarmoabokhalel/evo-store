@@ -4,7 +4,8 @@ import { useThemeStore } from '@/stores/themeStore'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
-import { trpc } from '@/providers/trpc'
+import { useQuery } from '@tanstack/react-query'
+import { getCartItems } from '@/services/cart'
 import {
   ShoppingBag,
   Sun,
@@ -27,9 +28,7 @@ export default function Navbar() {
   const t = translations[language]
 
   // Fetch cart from Supabase
-  const { data: cartItems } = trpc.cart.get.useQuery(undefined, {
-    enabled: !!user
-  })
+  const { data: cartItems } = useQuery({ queryKey: ['cart'], queryFn: () => getCartItems(user?.id || ''), enabled: !!user })
 
   const getTotalItems = () => {
     if (!cartItems || cartItems.length === 0) return 0
@@ -75,6 +74,9 @@ export default function Navbar() {
   // This guarantees perfect visibility and premium readability on both themes.
   const isNavActive = isScrolled || location.pathname !== '/'
 
+  // Show background when nav is active (scrolled or on subpage)
+  const alwaysShowBg = isNavActive
+
   return (
     <>
       <motion.nav
@@ -82,8 +84,8 @@ export default function Navbar() {
         animate={{ y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          isNavActive
-            ? 'bg-background/80 backdrop-blur-md border-b border-border/50 py-3 shadow-lg'
+          alwaysShowBg
+            ? isDark ? 'bg-background/80 backdrop-blur-md border-b border-border/50 py-3 shadow-lg' : 'bg-background/95 backdrop-blur-md border-b border-border py-3 shadow-lg'
             : 'bg-transparent py-5'
         }`}
       >
@@ -112,11 +114,11 @@ export default function Navbar() {
                     to={link.path}
                     className={`px-4 py-2 rounded-full text-sm font-medium tracking-[0.05em] uppercase transition-all duration-300 ${
                       isActive
-                        ? isNavActive
-                          ? 'bg-foreground/10 text-foreground'
+                        ? alwaysShowBg
+                          ? 'bg-[#6B46C1] text-white'
                           : 'bg-white/20 text-white shadow-sm'
-                        : isNavActive
-                          ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/5'
+                        : alwaysShowBg
+                          ? 'text-foreground hover:bg-foreground/5'
                           : 'text-white/60 hover:text-white hover:bg-white/10'
                     }`}
                   >
@@ -138,8 +140,8 @@ export default function Navbar() {
                   window.dispatchEvent(event)
                 }}
                 className={`p-2 rounded-full transition-all duration-300 relative ${
-                  isNavActive
-                    ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
+                  alwaysShowBg
+                    ? 'text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 }`}
                 title={t.cartTitle}
@@ -155,8 +157,8 @@ export default function Navbar() {
               <Link
                 to="/shop"
                 className={`hidden md:inline-flex p-2 rounded-full transition-all duration-300 ${
-                  isNavActive
-                    ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
+                  alwaysShowBg
+                    ? 'text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 }`}
                 title={t.searchPlaceholder}
@@ -168,7 +170,7 @@ export default function Navbar() {
               <button
                 onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
                 className={`hidden md:inline-flex px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all duration-300 border ${
-                  isNavActive
+                  alwaysShowBg
                     ? 'text-foreground bg-foreground/5 hover:bg-foreground/10 border-border'
                     : 'text-white bg-white/10 hover:bg-white/20 border-white/10'
                 }`}
@@ -181,8 +183,8 @@ export default function Navbar() {
               <button
                 onClick={toggle}
                 className={`p-2 rounded-full transition-all duration-300 ${
-                  isNavActive
-                    ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
+                  alwaysShowBg
+                    ? 'text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 }`}
                 title={isDark ? t.themeLight : t.themeDark}
@@ -194,8 +196,8 @@ export default function Navbar() {
               <Link
                 to="/profile"
                 className={`hidden md:inline-flex p-2 rounded-full transition-all duration-300 relative ${
-                  isNavActive
-                    ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
+                  alwaysShowBg
+                    ? 'text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 }`}
               >
@@ -293,8 +295,8 @@ export default function Navbar() {
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className={`lg:hidden p-2 rounded-full transition-all duration-300 ${
-                  isNavActive
-                    ? 'text-foreground/60 hover:text-foreground hover:bg-foreground/10'
+                  alwaysShowBg
+                    ? 'text-foreground hover:bg-foreground/10'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 }`}
               >

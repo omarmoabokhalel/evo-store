@@ -23,7 +23,10 @@ import {
   X,
 } from 'lucide-react'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
-import { trpc } from '@/providers/trpc'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getAllProducts, createProduct, updateProduct, deleteProduct } from '@/services/products'
+import { getAllOrders, updateOrderStatus } from '@/services/orders'
+import { getTotalViews, getPageViewsStats, getViewsByPage, getViewsForPeriod, getOrdersForPeriod, getRevenueForPeriod } from '@/services/analytics'
 import { toast } from 'sonner'
 import {
   BarChart,
@@ -57,19 +60,20 @@ export default function AdminDashboard() {
     { id: 3, from: 'Omar Khalil', text: 'Can I customize my own design?', time: '2026-05-21 18:45', reply: null },
   ])
 
+  const queryClient = useQueryClient()
+
   // Fetch real data from Supabase
-  const { data: products, isLoading: productsLoading } = trpc.products.all.useQuery()
-const { data: orders, isLoading: ordersLoading } = trpc.orders.all.useQuery()
-const { data: totalViews } = trpc.analytics.getTotalViews.useQuery()
-const { data: viewsStats } = trpc.analytics.getStats.useQuery({ days: 7 })
-const { data: viewsByPage } = trpc.analytics.getViewsByPage.useQuery()
-const { data: currentViews } = trpc.analytics.getViewsForPeriod.useQuery({ days: 7 })
-const { data: previousViews } = trpc.analytics.getViewsForPeriod.useQuery({ days: 14 })
-const { data: currentOrders } = trpc.analytics.getOrdersForPeriod.useQuery({ days: 7 })
-const { data: previousOrders } = trpc.analytics.getOrdersForPeriod.useQuery({ days: 14 })
-const { data: currentRevenue } = trpc.analytics.getRevenueForPeriod.useQuery({ days: 7 })
-const { data: previousRevenue } = trpc.analytics.getRevenueForPeriod.useQuery({ days: 14 })
-const utils = trpc.useUtils()
+  const { data: products, isLoading: productsLoading } = useQuery({ queryKey: ['products'], queryFn: getAllProducts })
+  const { data: orders, isLoading: ordersLoading } = useQuery({ queryKey: ['orders'], queryFn: getAllOrders })
+  const { data: totalViews } = useQuery({ queryKey: ['analytics', 'totalViews'], queryFn: getTotalViews })
+  const { data: viewsStats } = useQuery({ queryKey: ['analytics', 'stats', 7], queryFn: () => getPageViewsStats(7) })
+  const { data: viewsByPage } = useQuery({ queryKey: ['analytics', 'viewsByPage'], queryFn: getViewsByPage })
+  const { data: currentViews } = useQuery({ queryKey: ['analytics', 'views', 7], queryFn: () => getViewsForPeriod(7) })
+  const { data: previousViews } = useQuery({ queryKey: ['analytics', 'views', 14], queryFn: () => getViewsForPeriod(14) })
+  const { data: currentOrders } = useQuery({ queryKey: ['analytics', 'orders', 7], queryFn: () => getOrdersForPeriod(7) })
+  const { data: previousOrders } = useQuery({ queryKey: ['analytics', 'orders', 14], queryFn: () => getOrdersForPeriod(14) })
+  const { data: currentRevenue } = useQuery({ queryKey: ['analytics', 'revenue', 7], queryFn: () => getRevenueForPeriod(7) })
+  const { data: previousRevenue } = useQuery({ queryKey: ['analytics', 'revenue', 14], queryFn: () => getRevenueForPeriod(14) })
   // Debug logging
   useEffect(() => {
     console.log('AdminDashboard - orders:', orders)
@@ -77,17 +81,16 @@ const utils = trpc.useUtils()
   }, [orders, ordersLoading])
   
   // Product mutations
-  const createProduct = trpc.products.create.useMutation()
-  const updateProduct = trpc.products.update.useMutation()
-  const deleteProduct = trpc.products.delete.useMutation()
+  const createProductMutation = useMutation({ mutationFn: createProduct, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }) })
+  const updateProductMutation = useMutation({ mutationFn: ({ id, data }: { id: string, data: any }) => updateProduct(id, data), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }) })
+  const deleteProductMutation = useMutation({ mutationFn: deleteProduct, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }) })
   // Order mutation
-const updateOrderStatus = trpc.orders.updateStatus.useMutation()
+  const updateOrderStatusMutation = useMutation({ mutationFn: ({ id, status }: { id: string, status: string }) => updateOrderStatus(id, status as any), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }) })
 
 const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
   try {
-    await updateOrderStatus.mutateAsync({ id: orderId, status: newStatus as any })
+    await updateOrderStatusMutation.mutateAsync({ id: orderId, status: newStatus })
     toast.success('Order status updated!')
-    utils.orders.all.invalidate() // بيعمل ريفريش للأوردرات بعد التحديث
   } catch (error: any) {
     toast.error(error.message || 'Failed to update order status')
   }
@@ -231,7 +234,7 @@ const totalRevenue = orders?.filter(o => o.status === 'delivered').reduce((acc, 
   const handleDeleteProduct = async (id: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
       try {
-        await deleteProduct.mutateAsync({ id })
+        await deleteProductMutation.mutateAsync(id)
         toast.success('Product deleted successfully')
       } catch (error: any) {
         toast.error(error.message || 'Failed to delete product')
@@ -243,13 +246,13 @@ const totalRevenue = orders?.filter(o => o.status === 'delivered').reduce((acc, 
     e.preventDefault()
     try {
       if (editingProduct) {
-        await updateProduct.mutateAsync({
+        await updateProductMutation.mutateAsync({
           id: editingProduct.id,
           data: productForm,
         })
         toast.success('Product updated successfully')
       } else {
-        await createProduct.mutateAsync(productForm)
+        await createProductMutation.mutateAsync(productForm)
         toast.success('Product created successfully')
       }
       setShowProductModal(false)

@@ -13,7 +13,8 @@ import { categories, colorOptions, designTypes } from '@/data/products'
 import type { Product } from '@/data/products'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
-import { trpc } from '@/providers/trpc'
+import { useQuery } from '@tanstack/react-query'
+import { getProducts, getProductsByCategory, searchProducts } from '@/services/products'
 
 export default function Shop() {
   const { language } = useLanguageStore()
@@ -31,16 +32,10 @@ export default function Shop() {
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
-  // Fetch products from backend
-  const { data: allProducts = [], isLoading } = trpc.products.list.useQuery()
-  const { data: categoryProducts = [] } = trpc.products.byCategory.useQuery(
-    { category: selectedCategory },
-    { enabled: selectedCategory !== 'all' }
-  )
-  const { data: searchResults = [] } = trpc.products.search.useQuery(
-    { query: searchQuery },
-    { enabled: searchQuery.length > 0 }
-  )
+  // Fetch products from Supabase
+  const { data: allProducts = [], isLoading } = useQuery({ queryKey: ['products'], queryFn: getProducts })
+  const { data: categoryProducts = [] } = useQuery({ queryKey: ['products', 'category', selectedCategory], queryFn: () => getProductsByCategory(selectedCategory), enabled: selectedCategory !== 'all' })
+  const { data: searchResults = [] } = useQuery({ queryKey: ['products', 'search', searchQuery], queryFn: () => searchProducts(searchQuery), enabled: searchQuery.length > 0 })
 
   useEffect(() => {
     const query = searchParams.get('search') || ''

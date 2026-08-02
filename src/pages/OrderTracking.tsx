@@ -14,7 +14,8 @@ import {
   CreditCard,
   Banknote,
 } from 'lucide-react'
-import { trpc } from '@/providers/trpc'
+import { useQuery } from '@tanstack/react-query'
+import { getOrderById } from '@/services/orders'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 
@@ -25,11 +26,8 @@ export default function OrderTracking() {
   const { orderId } = useParams<{ orderId: string }>()
   const [searchId, setSearchId] = useState('')
 
-  // Fetch order by ID from backend
-  const { data: order, isLoading, error } = trpc.orders.byId.useQuery(
-    { id: orderId || '' },
-    { enabled: !!orderId }
-  )
+  // Fetch order by ID from Supabase
+  const { data: order, isLoading, error } = useQuery({ queryKey: ['order', orderId], queryFn: () => getOrderById(orderId || ''), enabled: !!orderId })
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()

@@ -4,7 +4,8 @@ import { motion } from 'framer-motion'
 import { Upload, ArrowRight, CheckCircle } from 'lucide-react'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
-import { trpc } from '@/providers/trpc'
+import { useMutation } from '@tanstack/react-query'
+import { uploadReceipt as uploadReceiptService } from '@/services/orders'
 import { toast } from 'sonner'
 
 export default function UploadReceipt() {
@@ -17,7 +18,7 @@ export default function UploadReceipt() {
   const [preview, setPreview] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
-  const uploadReceipt = trpc.orders.uploadReceipt.useMutation()
+  const uploadReceiptMutation = useMutation({ mutationFn: uploadReceiptService })
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -47,7 +48,7 @@ export default function UploadReceipt() {
       reader.onloadend = async () => {
         const base64 = reader.result as string
 
-        await uploadReceipt.mutateAsync({
+        await uploadReceiptMutation.mutateAsync({
           orderId,
           receiptImage: base64
         })
