@@ -9,7 +9,7 @@ interface LanguageState {
 export const useLanguageStore = create<LanguageState>()(
   persist(
     (set) => ({
-      language: "ar", // Default language is Arabic (اللغة الأساسية عربي)
+      language: "en", // Default language is English
       setLanguage: (lang) => set({ language: lang }),
     }),
     { name: "evo-language" }
