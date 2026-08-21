@@ -91,16 +91,16 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-[#6B46C1] mt-0.5 shrink-0" />
                 <span className="text-muted-foreground text-sm">
-                  {language === 'ar' ? 'منطقة الأزياء، القاهرة، مصر' : 'Fashion District, Cairo, Egypt'}
+                  {language === 'ar' ? 'منطقة الأزياء، دمنهور، مصر' : 'Fashion District, Damanhour, Egypt'}
                 </span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-[#6B46C1] shrink-0" />
-                <span className="text-muted-foreground text-sm" dir="ltr">+20 123 456 7890</span>
+                <span className="text-muted-foreground text-sm" dir="ltr">+201277627382</span>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-[#6B46C1] shrink-0" />
-                <span className="text-muted-foreground text-sm">hello@evo-brand.com</span>
+                <span className="text-muted-foreground text-sm">evo.brand.eg@gmail.com</span>
               </li>
             </ul>
           </div>

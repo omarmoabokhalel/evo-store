@@ -60,7 +60,7 @@ export const translations = {
 
     // Footer
     footerRights: "جميع الحقوق محفوظة لـ إيفو.",
-    footerMadeInEgypt: "اتصنع بكل فخر بالذكاء الاصطناعي في مصر 🇪🇬",
+    footerMadeInEgypt: "EVO Team",
 
     // Shop Page
     allProducts: "كل المنتجات",
@@ -230,7 +230,7 @@ export const translations = {
 
     // Footer
     footerRights: "All Rights Reserved to EVO.",
-    footerMadeInEgypt: "Designed and built with AI in Egypt 🇪🇬",
+    footerMadeInEgypt: "EVO Team",
 
     // Shop Page
     allProducts: "All Products",
