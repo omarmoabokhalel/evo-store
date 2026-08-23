@@ -23,6 +23,9 @@ import type { Product } from '@/data/products'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProductById, getProductsByCategory } from '@/services/products'
+import { getProductByHandle as getShopifyProductByHandle, shopifyProductToAppProduct } from '@/services/shopifyProducts'
+import { createShopifyCheckout } from '@/services/shopifyCheckout'
+import { shouldUseShopify } from '@/config/shopify'
 import { addCartItem } from '@/services/cart'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
@@ -35,7 +38,19 @@ export default function ProductDetail() {
 
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
-  const { data: product, isLoading, error } = useQuery({ queryKey: ['product', id], queryFn: () => getProductById(id || ''), enabled: !!id })
+  const useShopify = shouldUseShopify()
+  const { data: product, isLoading, error } = useQuery({
+    queryKey: ['product', id],
+    queryFn: async () => {
+      if (useShopify) {
+        // Shopify uses handles, so we need to fetch by handle
+        const shopifyProduct = await getShopifyProductByHandle(id || '')
+        return shopifyProduct ? shopifyProductToAppProduct(shopifyProduct) : null
+      }
+      return getProductById(id || '')
+    },
+    enabled: !!id
+  })
   const addToCart = useMutation({ mutationFn: addCartItem, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) })
 
   // Debug logging
@@ -59,6 +74,10 @@ export default function ProductDetail() {
   const [showAITryOn, setShowAITryOn] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
 
+  // Force re-render helper
+  const [renderKey, setRenderKey] = useState(0)
+  const forceUpdate = () => setRenderKey(prev => prev + 1)
+
   // Normalize product data from backend snake_case to frontend camelCase
   const normalizedProduct = product ? {
     ...product,
@@ -68,13 +87,14 @@ export default function ProductDetail() {
   } : null
 
   // Check if product is in favorites
-  useEffect(() => {
-    if (normalizedProduct) {
-      const saved = localStorage.getItem('favorites')
-      const favorites = saved ? JSON.parse(saved) : []
-      setIsWishlisted(favorites.some((f: any) => f.id === normalizedProduct.id))
-    }
-  }, [normalizedProduct])
+ useEffect(() => {
+  if (normalizedProduct) {
+    const saved = localStorage.getItem('favorites')
+    const favorites = saved ? JSON.parse(saved) : []
+    setIsWishlisted(favorites.some((f: any) => f.id === normalizedProduct.id))
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [product?.id])
 
   // Toggle favorite
   const toggleFavorite = () => {
@@ -103,12 +123,13 @@ export default function ProductDetail() {
   }
 
   // Set default selections
-  useEffect(() => {
-    if (normalizedProduct) {
-      setSelectedColor(normalizedProduct.colors?.[0] || '')
-      setSelectedSize(normalizedProduct.sizes?.[Math.floor((normalizedProduct.sizes?.length || 0) / 2)] || '')
-    }
-  }, [normalizedProduct])
+useEffect(() => {
+  if (normalizedProduct) {
+    setSelectedColor(normalizedProduct.colors?.[0] || '')
+    setSelectedSize(normalizedProduct.sizes?.[Math.floor((normalizedProduct.sizes?.length || 0) / 2)] || '')
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [product?.id])
 
   const discountedPrice = normalizedProduct ? parseFloat(normalizedProduct.price.toString()) * (1 - (normalizedProduct.discount || 0) / 100) : 0
   const { data: relatedProducts = [] } = useQuery({ queryKey: ['products', 'category', normalizedProduct?.category || ''], queryFn: () => getProductsByCategory(normalizedProduct?.category || ''), enabled: !!normalizedProduct })
@@ -159,6 +180,43 @@ export default function ProductDetail() {
       return
     }
 
+    const useShopify = shouldUseShopify()
+    
+    if (useShopify) {
+      // Shopify: Redirect to checkout directly
+      try {
+        // Find the variant that matches the selected size and color
+       const selectedColorName = colorOptions.find((c) => c.value === selectedColor)?.name || selectedColor
+
+const variant = normalizedProduct.variants?.find((v: any) => {
+  const sizeOption = v.options?.find((o: any) => o.name === 'Size')
+  const colorOption = v.options?.find((o: any) => o.name === 'Color')
+  return sizeOption?.value === selectedSize && colorOption?.value === selectedColorName
+})
+        
+        if (!variant) {
+          toast.error(language === 'ar' ? 'هذا المقاس واللون غير متوفر' : 'This size and color combination is not available')
+          return
+        }
+        
+        // Create Shopify checkout
+        const checkoutUrl = await createShopifyCheckout([
+          {
+            variantId: variant.id,
+            quantity: quantity,
+          }
+        ])
+        
+        // Redirect to Shopify checkout
+        window.location.href = checkoutUrl
+      } catch (error: any) {
+        console.error('Shopify checkout error:', error)
+        toast.error(error.message || (language === 'ar' ? 'فشل إنشاء الطلب' : 'Failed to create checkout'))
+      }
+      return
+    }
+    
+    // Supabase: Add to cart
     if (!user) {
       toast.error(language === 'ar' ? 'يرجى تسجيل الدخول أولاً' : 'Please login first')
       return
@@ -284,6 +342,7 @@ export default function ProductDetail() {
 
           {/* Info */}
           <motion.div
+            key={`${selectedColor}-${selectedSize}`}
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             className="space-y-6"
@@ -320,21 +379,26 @@ export default function ProductDetail() {
             </div>
 
             {/* Color Selection */}
-            <div>
+            <div key={`color-${renderKey}`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-foreground">{t.color}: <span className="text-muted-foreground font-normal">{getColorName(selectedColor)}</span></h3>
               </div>
               <div className="flex gap-3">
-                {normalizedProduct.colors?.map((color) => (
+                {normalizedProduct.colors?.map((color, index) => (
                   <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
-                    className={`group relative w-12 h-12 rounded-full transition-all border border-border shadow-sm ${
-                      selectedColor === color
-                        ? 'ring-2 ring-[#6B46C1] ring-offset-2 ring-offset-background scale-95'
-                        : 'hover:scale-110'
-                    }`}
-                    style={{ backgroundColor: color }}
+                    key={`color-${index}`}
+                    onClick={() => {
+                      setSelectedColor(color)
+                      forceUpdate()
+                    }}
+                    className="group relative w-12 h-12 rounded-full transition-all border border-border shadow-sm hover:scale-110"
+                    style={{
+                      backgroundColor: color,
+                      ...(selectedColor === color && {
+                        boxShadow: '0 0 0 3px #6B46C1 !important',
+                        transform: 'scale(0.95) !important',
+                      })
+                    }}
                   >
                     {selectedColor === color && (
                       <span className="absolute inset-0 flex items-center justify-center">
@@ -347,7 +411,7 @@ export default function ProductDetail() {
             </div>
 
             {/* Size Selection */}
-            <div>
+            <div key={`size-${renderKey}`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-foreground">{t.size}: <span className="text-muted-foreground font-normal">{selectedSize}</span></h3>
                 <button
@@ -359,13 +423,16 @@ export default function ProductDetail() {
                 </button>
               </div>
               <div className="flex gap-2">
-                {normalizedProduct.sizes?.map((size) => (
+                {normalizedProduct.sizes?.map((size, index) => (
                   <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
+                    key={`size-${index}`}
+                    onClick={() => {
+                      setSelectedSize(size)
+                      forceUpdate()
+                    }}
                     className={`w-14 h-14 rounded-xl font-bold text-sm transition-all border ${
                       selectedSize === size
-                        ? 'bg-[#6B46C1] border-[#6B46C1] text-white shadow-md'
+                        ? '!bg-[#6B46C1] !border-[#6B46C1] !text-white !shadow-md'
                         : 'bg-foreground/5 border-border text-muted-foreground hover:bg-foreground/10'
                     }`}
                   >

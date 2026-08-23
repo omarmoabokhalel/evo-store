@@ -15,6 +15,8 @@ import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { useQuery } from '@tanstack/react-query'
 import { getProducts, getProductsByCategory, searchProducts } from '@/services/products'
+import { getAllProducts as getShopifyProducts, getProductsByProductType as getShopifyProductsByType, searchProducts as searchShopifyProducts, shopifyProductToAppProduct } from '@/services/shopifyProducts'
+import { shouldUseShopify } from '@/config/shopify'
 
 export default function Shop() {
   const { language } = useLanguageStore()
@@ -32,10 +34,41 @@ export default function Shop() {
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
-  // Fetch products from Supabase
-  const { data: allProducts = [], isLoading } = useQuery({ queryKey: ['products'], queryFn: getProducts })
-  const { data: categoryProducts = [] } = useQuery({ queryKey: ['products', 'category', selectedCategory], queryFn: () => getProductsByCategory(selectedCategory), enabled: selectedCategory !== 'all' })
-  const { data: searchResults = [] } = useQuery({ queryKey: ['products', 'search', searchQuery], queryFn: () => searchProducts(searchQuery), enabled: searchQuery.length > 0 })
+  const useShopify = shouldUseShopify()
+
+  // Fetch products from Supabase or Shopify
+  const { data: allProducts = [], isLoading } = useQuery({
+    queryKey: ['products'],
+    queryFn: async () => {
+      if (useShopify) {
+        const shopifyProducts = await getShopifyProducts()
+        return shopifyProducts.map(shopifyProductToAppProduct)
+      }
+      return getProducts()
+    }
+  })
+  const { data: categoryProducts = [] } = useQuery({
+    queryKey: ['products', 'category', selectedCategory],
+    queryFn: async () => {
+      if (useShopify) {
+        const shopifyProducts = await getShopifyProductsByType(selectedCategory)
+        return shopifyProducts.map(shopifyProductToAppProduct)
+      }
+      return getProductsByCategory(selectedCategory)
+    },
+    enabled: selectedCategory !== 'all'
+  })
+  const { data: searchResults = [] } = useQuery({
+    queryKey: ['products', 'search', searchQuery],
+    queryFn: async () => {
+      if (useShopify) {
+        const shopifyProducts = await searchShopifyProducts(searchQuery)
+        return shopifyProducts.map(shopifyProductToAppProduct)
+      }
+      return searchProducts(searchQuery)
+    },
+    enabled: searchQuery.length > 0
+  })
 
   useEffect(() => {
     const query = searchParams.get('search') || ''

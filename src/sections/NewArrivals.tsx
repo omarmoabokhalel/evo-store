@@ -6,6 +6,8 @@ import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { useQuery } from '@tanstack/react-query'
 import { getProducts } from '@/services/products'
+import { getNewProducts as getShopifyNewProducts, shopifyProductToAppProduct } from '@/services/shopifyProducts'
+import { shouldUseShopify } from '@/config/shopify'
 
 export default function NewArrivals() {
   const ref = useRef(null)
@@ -13,10 +15,21 @@ export default function NewArrivals() {
   const { language } = useLanguageStore()
   const t = translations[language]
   
-  // Fetch products from Supabase
-  const { data: supabaseProducts = [] } = useQuery({ queryKey: ['products'], queryFn: getProducts })
+  const useShopify = shouldUseShopify()
+
+  // Fetch products from Supabase or Shopify
+  const { data: supabaseProducts = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: async () => {
+      if (useShopify) {
+        const shopifyProducts = await getShopifyNewProducts()
+        return shopifyProducts.map(shopifyProductToAppProduct)
+      }
+      return getProducts()
+    }
+  })
   
-  // Filter new products from Supabase only
+  // Filter new products
   const newProducts = supabaseProducts.filter((p) => p.is_new || p.isNew).slice(0, 6)
 
   return (

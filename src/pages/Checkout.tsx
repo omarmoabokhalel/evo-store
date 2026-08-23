@@ -17,10 +17,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCartItems, clearCart } from '@/services/cart'
 import { createOrder } from '@/services/orders'
 import { getProducts } from '@/services/products'
+import { createShopifyCheckout } from '@/services/shopifyCheckout'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { toast } from 'sonner'
 import { colorOptions } from '@/data/products'
+import { shouldUseShopify } from '@/config/shopify'
 
 export default function Checkout() {
   const { language } = useLanguageStore()
@@ -44,6 +46,7 @@ export default function Checkout() {
   };
   const { user } = useSupabaseAuth()
   const queryClient = useQueryClient()
+  const useShopify = shouldUseShopify()
   const { data: cartItems } = useQuery({ queryKey: ['cart'], queryFn: () => getCartItems(user?.id || ''), enabled: !!user })
   const createOrderMutation = useMutation({ mutationFn: createOrder })
   const clearCartMutation = useMutation({ mutationFn: () => clearCart(user?.id || '') })
@@ -100,32 +103,69 @@ export default function Checkout() {
     setIsProcessing(true)
 
     try {
-      console.log('Creating order with payment method:', formData.paymentMethod)
-      const order = await createOrderMutation.mutateAsync({
-        userId: user?.id || '',
-        total,
-        paymentMethod: formData.paymentMethod,
-        address: `${formData.address}, ${formData.city}, ${formData.postalCode}`,
-        phone: formData.phone,
-        items: itemsWithProducts.filter(item => item.product).map((item) => ({
-          productId: item.product.id,
-          name: item.product.name,
-          price: parseFloat(String(item.product.price || 0)),
-          quantity: item.quantity,
-          size: item.size,
-          color: item.color,
-          image: item.product.image,
-        })),
-      })
+      if (useShopify) {
+        // Use Shopify checkout
+        const lineItems = itemsWithProducts
+          .filter(item => item.product && item.product.variants)
+          .map(item => {
+            // Try to find matching variant based on size and color
+            const variant = item.product.variants?.find((v: any) => {
+              const sizeMatch = v.options?.some((o: any) => o.name === 'Size' && o.value === item.size)
+              const colorMatch = v.options?.some((o: any) => o.name === 'Color' && o.value === item.color)
+              return sizeMatch && colorMatch
+            }) || item.product.variants?.[0]
+            
+            return {
+              variantId: variant?.id || item.product.variants?.[0]?.id,
+              quantity: item.quantity,
+            }
+          })
 
-      await clearCartMutation.mutateAsync()
+        const checkout = await createShopifyCheckout(
+          lineItems,
+          formData.email,
+          {
+            address1: formData.address,
+            city: formData.city,
+            country: 'EG', // Default to Egypt
+            firstName: formData.fullName.split(' ')[0] || formData.fullName,
+            lastName: formData.fullName.split(' ').slice(1).join(' ') || '',
+            phone: formData.phone,
+            zip: formData.postalCode || '00000',
+          }
+        )
 
-      toast.success(language === 'ar' ? 'تم تأكيد طلبك بنجاح! 🎉' : 'Order placed successfully!')
-
-      if (formData.paymentMethod !== 'cod') {
-        navigate(`/upload-receipt/${order.id}`)
+        // Redirect to Shopify checkout
+        window.location.href = checkout.webUrl
       } else {
-        navigate(`/track-order/${order.id}`)
+        // Use Supabase order creation
+        console.log('Creating order with payment method:', formData.paymentMethod)
+        const order = await createOrderMutation.mutateAsync({
+          userId: user?.id || '',
+          total,
+          paymentMethod: formData.paymentMethod,
+          address: `${formData.address}, ${formData.city}, ${formData.postalCode}`,
+          phone: formData.phone,
+          items: itemsWithProducts.filter(item => item.product).map((item) => ({
+            productId: item.product.id,
+            name: item.product.name,
+            price: parseFloat(String(item.product.price || 0)),
+            quantity: item.quantity,
+            size: item.size,
+            color: item.color,
+            image: item.product.image,
+          })),
+        })
+
+        await clearCartMutation.mutateAsync()
+
+        toast.success(language === 'ar' ? 'تم تأكيد طلبك بنجاح! 🎉' : 'Order placed successfully!')
+
+        if (formData.paymentMethod !== 'cod') {
+          navigate(`/upload-receipt/${order.id}`)
+        } else {
+          navigate(`/track-order/${order.id}`)
+        }
       }
     } catch (error: any) {
       console.error('Checkout error:', error)
