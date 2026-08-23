@@ -17,12 +17,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCartItems, clearCart } from '@/services/cart'
 import { createOrder } from '@/services/orders'
 import { getProducts } from '@/services/products'
-import { createShopifyCheckout } from '@/services/shopifyCheckout'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { toast } from 'sonner'
 import { colorOptions } from '@/data/products'
 import { shouldUseShopify } from '@/config/shopify'
+import { createShopifyCheckout, type ShopifyCheckoutLineItem } from '@/services/shopifyCheckout'
 
 export default function Checkout() {
   const { language } = useLanguageStore()
@@ -100,43 +100,50 @@ export default function Checkout() {
       return
     }
 
-    setIsProcessing(true)
+       setIsProcessing(true)
 
     try {
       if (useShopify) {
-        // Use Shopify checkout
+        // Build the actual line items from the real cart (size/color/quantity)
+        // so the checkout reflects what the customer actually selected —
+        // never redirect everyone to the same fixed cart link.
         const lineItems = itemsWithProducts
-          .filter(item => item.product && item.product.variants)
-          .map(item => {
-            // Try to find matching variant based on size and color
-            const variant = item.product.variants?.find((v: any) => {
-              const sizeMatch = v.options?.some((o: any) => o.name === 'Size' && o.value === item.size)
-              const colorMatch = v.options?.some((o: any) => o.name === 'Color' && o.value === item.color)
-              return sizeMatch && colorMatch
-            }) || item.product.variants?.[0]
-            
-            return {
-              variantId: variant?.id || item.product.variants?.[0]?.id,
-              quantity: item.quantity,
-            }
+          .filter((item) => item.product)
+          .map((item) => {
+            const colorName = colorOptions.find((c) => c.value === item.color)?.name || item.color
+            const variant = (item.product as any).variants?.find((v: any) => {
+              const sizeOption = v.options?.find((o: any) => o.name === 'Size')
+              const colorOption = v.options?.find((o: any) => o.name === 'Color')
+              return sizeOption?.value === item.size && colorOption?.value === colorName
+            })
+            return variant ? { variantId: variant.id, quantity: item.quantity } : null
           })
+          .filter((li): li is ShopifyCheckoutLineItem => li !== null)
 
-        const checkout = await createShopifyCheckout(
-          lineItems,
-          formData.email,
-          {
-            address1: formData.address,
-            city: formData.city,
-            country: 'EG', // Default to Egypt
-            firstName: formData.fullName.split(' ')[0] || formData.fullName,
-            lastName: formData.fullName.split(' ').slice(1).join(' ') || '',
-            phone: formData.phone,
-            zip: formData.postalCode || '00000',
-          }
-        )
+        if (lineItems.length === 0) {
+          toast.error(
+            language === 'ar'
+              ? 'حدث خطأ في تجهيز المنتجات، برجاء المحاولة مرة أخرى'
+              : 'Could not match cart items to available variants'
+          )
+          setIsProcessing(false)
+          return
+        }
 
-        // Redirect to Shopify checkout
-        window.location.href = checkout.webUrl
+        const [firstName, ...rest] = formData.fullName.trim().split(' ')
+        const lastName = rest.join(' ') || firstName
+
+        const checkoutUrl = await createShopifyCheckout(lineItems, formData.email, {
+          address1: formData.address,
+          city: formData.city,
+          country: 'EG',
+          firstName,
+          lastName,
+          phone: formData.phone,
+          zip: formData.postalCode || '00000',
+        })
+
+        window.location.href = checkoutUrl
       } else {
         // Use Supabase order creation
         console.log('Creating order with payment method:', formData.paymentMethod)
@@ -434,7 +441,7 @@ export default function Checkout() {
                         {item.size} / {getColorName(item.color)}
                       </p>
                       <p className="text-sm font-bold text-foreground mt-2">
-                        ${(parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity).toFixed(2)}
+                        {(parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity).toFixed(2)} EGP
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground">x{item.quantity}</span>
@@ -446,23 +453,23 @@ export default function Checkout() {
               <div className="space-y-3 pt-4 border-t border-border">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{t.subtotal}</span>
-                  <span className="text-foreground">${subtotal.toFixed(2)}</span>
+                  <span className="text-foreground">{subtotal.toFixed(2)} EGP</span>
                 </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-green-500 font-bold">{t.wheelDiscount.replace('{percent}', String(discount))}</span>
-                    <span className="text-green-500 font-bold">-${discountAmount.toFixed(2)}</span>
+                    <span className="text-green-500 font-bold">-{discountAmount.toFixed(2)} EGP</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{language === 'ar' ? 'الشحن والتوصيل' : 'Shipping'}</span>
                   <span className={shipping === 0 ? 'text-green-500 font-bold' : 'text-foreground font-medium'}>
-                    {shipping === 0 ? (language === 'ar' ? 'مجاناً' : 'Free') : `$${shipping.toFixed(2)}`}
+                    {shipping === 0 ? (language === 'ar' ? 'مجاناً' : 'Free') : `${shipping.toFixed(2)} EGP`}
                   </span>
                 </div>
                 <div className="flex justify-between text-lg font-bold pt-3 border-t border-border">
                   <span className="text-foreground">{t.total}</span>
-                  <span className="text-gradient">${total.toFixed(2)}</span>
+                  <span className="text-gradient">{total.toFixed(2)} EGP</span>
                 </div>
               </div>
 
@@ -475,7 +482,7 @@ export default function Checkout() {
                     : 'bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white hover:opacity-90 hover:scale-101'
                 }`}
               >
-                {isProcessing ? t.orderProcessing : `${t.placeOrder} - $${total.toFixed(2)}`}
+                {isProcessing ? t.orderProcessing : `${t.placeOrder} - ${total.toFixed(2)} EGP`}
               </button>
 
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">

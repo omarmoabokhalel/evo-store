@@ -5,6 +5,8 @@ import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCartItems, updateCartItem, removeCartItem, clearCart } from '@/services/cart'
 import { getProducts } from '@/services/products'
+import { fetchCart, updateCartLineQuantity, removeCartLine } from '@/services/shopifyCart'
+import { shouldUseShopify } from '@/config/shopify'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
@@ -13,13 +15,35 @@ export default function CartDrawer() {
   const { language } = useLanguageStore()
   const t = translations[language]
   const { user } = useSupabaseAuth()
+  const useShopify = shouldUseShopify()
 
   const [isOpen, setIsOpen] = useState(false)
-  
+
   const queryClient = useQueryClient()
 
-  // Fetch cart from Supabase
-  const { data: cartItems } = useQuery({ queryKey: ['cart'], queryFn: () => getCartItems(user?.id || ''), enabled: !!user })
+  // ── Shopify cart ─────────────────────────────────────────
+  const { data: shopifyCart } = useQuery({
+    queryKey: ['shopify-cart'],
+    queryFn: fetchCart,
+    enabled: useShopify,
+  })
+
+  const updateShopifyQtyMutation = useMutation({
+    mutationFn: ({ lineId, quantity }: { lineId: string; quantity: number }) =>
+      updateCartLineQuantity(lineId, quantity),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shopify-cart'] }),
+  })
+  const removeShopifyLineMutation = useMutation({
+    mutationFn: (lineId: string) => removeCartLine(lineId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shopify-cart'] }),
+  })
+
+  // ── Supabase (legacy) cart ───────────────────────────────
+  const { data: cartItems } = useQuery({
+    queryKey: ['cart'],
+    queryFn: () => getCartItems(user?.id || ''),
+    enabled: !useShopify && !!user,
+  })
 
   const clearCartMutation = useMutation({ mutationFn: () => clearCart(user?.id || ''), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) })
   const updateQuantityMutation = useMutation({ mutationFn: ({ id, quantity }: { id: string, quantity: number }) => updateCartItem(id, quantity), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) })
@@ -27,53 +51,46 @@ export default function CartDrawer() {
 
   const items = cartItems || []
 
-  // Fetch missing product data
   const productIds = items.filter(item => !item.product).map(item => item.product_id)
-  const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts, enabled: productIds.length > 0 })
+  const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts, enabled: !useShopify && productIds.length > 0 })
 
-  // Create a map of products by ID
   const productMap = new Map((products || []).map(p => [p.id, p]))
 
-  // Merge product data into cart items
   const itemsWithProducts = items.map(item => ({
     ...item,
     product: item.product || productMap.get(item.product_id)
   }))
 
-  // Debug logging
-  useEffect(() => {
-    console.log('CartDrawer - cartItems:', cartItems)
-    console.log('CartDrawer - items:', items)
-    console.log('CartDrawer - itemsWithProducts:', itemsWithProducts)
-    console.log('CartDrawer - user:', user)
-    if (items.length > 0) {
-      console.log('CartDrawer - first item:', items[0])
-      console.log('CartDrawer - first item product:', items[0].product)
-    }
-  }, [cartItems, items, itemsWithProducts, user])
   const discount = 0 // TODO: Add wheel discount from Supabase
 
-  // Normalize product data and calculate prices safely
-  const totalPrice = itemsWithProducts.reduce((acc, item) => {
-    if (!item.product) return acc
-    const price = parseFloat(String(item.product.price || 0))
-    return acc + (price * item.quantity)
-  }, 0)
+  // ── Unified totals across both modes ─────────────────────
+  const totalPrice = useShopify
+    ? shopifyCart?.subtotal || 0
+    : itemsWithProducts.reduce((acc, item) => {
+        if (!item.product) return acc
+        const price = parseFloat(String(item.product.price || 0))
+        return acc + (price * item.quantity)
+      }, 0)
 
-  const discountedPrice = itemsWithProducts.reduce((acc, item) => {
-    if (!item.product) return acc
-    const price = parseFloat(String(item.product.price || 0))
-    const discountPercent = parseFloat(String(item.product.discount || 0))
-    return acc + (price * (1 - discountPercent / 100) * item.quantity)
-  }, 0)
+  const discountedPrice = useShopify
+    ? shopifyCart?.total || 0
+    : itemsWithProducts.reduce((acc, item) => {
+        if (!item.product) return acc
+        const price = parseFloat(String(item.product.price || 0))
+        const discountPercent = parseFloat(String(item.product.discount || 0))
+        return acc + (price * (1 - discountPercent / 100) * item.quantity)
+      }, 0)
 
   const finalPrice = discountedPrice * (1 - discount / 100)
+  const itemCount = useShopify ? shopifyCart?.lines.length || 0 : itemsWithProducts.length
 
   useEffect(() => {
     const handler = () => setIsOpen(true)
     window.addEventListener('toggle-cart', handler)
     return () => window.removeEventListener('toggle-cart', handler)
   }, [])
+
+  const isEmpty = useShopify ? !shopifyCart || shopifyCart.lines.length === 0 : itemsWithProducts.length === 0
 
   return (
     <>
@@ -106,7 +123,7 @@ export default function CartDrawer() {
                 <ShoppingBag className="w-5 h-5 text-[#6B46C1]" />
                 <h2 className="text-lg font-bold text-foreground">{t.cartTitle}</h2>
                 <span className="px-2 py-0.5 rounded-full bg-[#6B46C1]/20 text-[#6B46C1] text-xs font-bold">
-                  {t.cartItemsCount.replace('{count}', String(itemsWithProducts.length))}
+                  {t.cartItemsCount.replace('{count}', String(itemCount))}
                 </span>
               </div>
               <button
@@ -119,7 +136,7 @@ export default function CartDrawer() {
 
             {/* Items */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
-              {items.length === 0 ? (
+              {isEmpty ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <ShoppingBag className="w-16 h-16 text-foreground/10 mb-4" />
                   <p className="text-foreground/50 text-lg font-bold mb-2">{t.emptyCartTitle}</p>
@@ -131,6 +148,65 @@ export default function CartDrawer() {
                     {t.continueShopping}
                   </button>
                 </div>
+              ) : useShopify ? (
+                <AnimatePresence mode="popLayout">
+                  {shopifyCart!.lines.map((line) => (
+                    <motion.div
+                      key={line.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95, x: language === 'ar' ? -100 : 100 }}
+                      className="flex gap-4 p-4 rounded-2xl bg-foreground/[0.02] border border-border"
+                    >
+                      {line.image && (
+                        <img
+                          src={line.image}
+                          alt={line.title}
+                          className="w-20 h-20 object-cover rounded-xl border border-border/30 bg-foreground/5"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-sm text-foreground truncate">{line.title}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          {line.size && <span className="text-xs text-muted-foreground font-bold">{line.size}</span>}
+                          {line.color && (
+                            <span className="w-3.5 h-3.5 rounded-full border border-border" style={{ backgroundColor: line.color }} />
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-2 bg-foreground/5 border border-border/50 rounded-full p-1">
+                            <button
+                              onClick={() => updateShopifyQtyMutation.mutate({ lineId: line.id, quantity: line.quantity - 1 })}
+                              disabled={line.quantity <= 1}
+                              className="w-7 h-7 rounded-full bg-background hover:bg-foreground/5 flex items-center justify-center text-foreground transition-colors disabled:opacity-40"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="text-sm font-bold w-6 text-center text-foreground">{line.quantity}</span>
+                            <button
+                              onClick={() => updateShopifyQtyMutation.mutate({ lineId: line.id, quantity: line.quantity + 1 })}
+                              className="w-7 h-7 rounded-full bg-background hover:bg-foreground/5 flex items-center justify-center text-foreground transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-foreground">
+                              {(line.price * line.quantity).toFixed(2)} {line.currencyCode}
+                            </span>
+                            <button
+                              onClick={() => removeShopifyLineMutation.mutate(line.id)}
+                              className="p-1.5 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all border border-transparent hover:border-red-500/20"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               ) : (
                 <AnimatePresence mode="popLayout">
                   {itemsWithProducts.filter(item => item.product).map((item) => (
@@ -189,46 +265,61 @@ export default function CartDrawer() {
             </div>
 
             {/* Footer */}
-            {itemsWithProducts.length > 0 && (
+            {!isEmpty && (
               <div className="p-6 border-t border-border space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{t.subtotal}</span>
-                    <span className="font-semibold text-foreground">${totalPrice.toFixed(2)}</span>
+                    <span className="font-semibold text-foreground">
+                      {useShopify ? `${totalPrice.toFixed(2)} ${shopifyCart?.currencyCode || ''}` : `$${totalPrice.toFixed(2)}`}
+                    </span>
                   </div>
                   {discountedPrice < totalPrice && (
                     <div className="flex justify-between text-sm">
                       <span className="text-[#6B46C1] font-bold">{t.productDiscount}</span>
-                      <span className="text-[#6B46C1] font-bold">-${(totalPrice - discountedPrice).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {discount > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-green-500 font-bold">{t.wheelDiscount.replace('{percent}', String(discount))}</span>
-                      <span className="text-green-500 font-bold">-${(discountedPrice * (discount / 100)).toFixed(2)}</span>
+                      <span className="text-[#6B46C1] font-bold">
+                        {useShopify
+                          ? `-${(totalPrice - discountedPrice).toFixed(2)} ${shopifyCart?.currencyCode || ''}`
+                          : `-$${(totalPrice - discountedPrice).toFixed(2)}`}
+                      </span>
                     </div>
                   )}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
                     <span className="text-foreground">{t.total}</span>
-                    <span className="text-gradient">${finalPrice.toFixed(2)}</span>
+                    <span className="text-gradient">
+                      {useShopify ? `${finalPrice.toFixed(2)} ${shopifyCart?.currencyCode || ''}` : `$${finalPrice.toFixed(2)}`}
+                    </span>
                   </div>
                 </div>
 
-                <Link
-                  to="/checkout"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center justify-center gap-2 w-full py-4 rounded-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl"
-                >
-                  {t.checkout}
-                  <ArrowRight className="w-5 h-5 rtl:rotate-180" />
-                </Link>
+                {useShopify ? (
+                  <a
+                    href={shopifyCart?.checkoutUrl}
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center justify-center gap-2 w-full py-4 rounded-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl"
+                  >
+                    {t.checkout}
+                    <ArrowRight className="w-5 h-5 rtl:rotate-180" />
+                  </a>
+                ) : (
+                  <Link
+                    to="/checkout"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center justify-center gap-2 w-full py-4 rounded-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl"
+                  >
+                    {t.checkout}
+                    <ArrowRight className="w-5 h-5 rtl:rotate-180" />
+                  </Link>
+                )}
 
-                <button
-                  onClick={() => clearCartMutation.mutate()}
-                  className="w-full py-2 text-sm text-red-500/80 hover:text-red-500 font-bold hover:underline transition-colors"
-                >
-                  {t.clearCart}
-                </button>
+                {!useShopify && (
+                  <button
+                    onClick={() => clearCartMutation.mutate()}
+                    className="w-full py-2 text-sm text-red-500/80 hover:text-red-500 font-bold hover:underline transition-colors"
+                  >
+                    {t.clearCart}
+                  </button>
+                )}
               </div>
             )}
           </motion.div>

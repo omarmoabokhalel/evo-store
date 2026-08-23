@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
+import { addToCart as addShopifyCartLine } from '@/services/shopifyCart'
+import { createShopifyCheckout } from '@/services/shopifyCheckout'
+
 import {
   ShoppingBag,
   Heart,
@@ -24,7 +27,6 @@ import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProductById, getProductsByCategory } from '@/services/products'
 import { getProductByHandle as getShopifyProductByHandle, shopifyProductToAppProduct } from '@/services/shopifyProducts'
-import { createShopifyCheckout } from '@/services/shopifyCheckout'
 import { shouldUseShopify } from '@/config/shopify'
 import { addCartItem } from '@/services/cart'
 import { useLanguageStore } from '@/stores/languageStore'
@@ -73,6 +75,7 @@ export default function ProductDetail() {
   const [showSizeChart, setShowSizeChart] = useState(false)
   const [showAITryOn, setShowAITryOn] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
+  const [isBuyingNow, setIsBuyingNow] = useState(false)
 
   // Force re-render helper
   const [renderKey, setRenderKey] = useState(0)
@@ -174,75 +177,145 @@ useEffect(() => {
     )
   }
 
-  const handleAddToCart = async () => {
+  // Finds the Shopify variant matching the currently selected size/color,
+  // or shows an error toast and returns null. Shared by Add to Cart and Buy Now.
+  const getSelectedVariant = (): any | null => {
+    const selectedColorName =
+      colorOptions.find((c) => c.value === selectedColor)?.name || selectedColor
+
+    const variant = normalizedProduct.variants?.find((v: any) => {
+      const sizeOption = v.options?.find((o: any) => o.name === 'Size')
+      const colorOption = v.options?.find((o: any) => o.name === 'Color')
+      return sizeOption?.value === selectedSize && colorOption?.value === selectedColorName
+    })
+
+    if (!variant) {
+      toast.error(
+        language === 'ar'
+          ? 'هذا المقاس واللون غير متوفر'
+          : 'This size and color combination is not available'
+      )
+      return null
+    }
+
+    return variant
+  }
+
+  // "Buy Now" — creates a one-off checkout for just this item and redirects
+  // straight to Shopify checkout, without touching the persistent cart.
+  const handleBuyNow = async () => {
     if (!selectedSize || !selectedColor) {
-      toast.error(language === 'ar' ? 'من فضلك اختار المقاس واللون أولاً!' : 'Please select size and color')
+      toast.error(
+        language === 'ar' ? 'من فضلك اختار المقاس واللون أولاً!' : 'Please select size and color'
+      )
       return
     }
 
-    const useShopify = shouldUseShopify()
-    
-    if (useShopify) {
-      // Shopify: Redirect to checkout directly
-      try {
-        // Find the variant that matches the selected size and color
-       const selectedColorName = colorOptions.find((c) => c.value === selectedColor)?.name || selectedColor
+    const variant = getSelectedVariant()
+    if (!variant) return
 
-const variant = normalizedProduct.variants?.find((v: any) => {
-  const sizeOption = v.options?.find((o: any) => o.name === 'Size')
-  const colorOption = v.options?.find((o: any) => o.name === 'Color')
-  return sizeOption?.value === selectedSize && colorOption?.value === selectedColorName
-})
-        
-        if (!variant) {
-          toast.error(language === 'ar' ? 'هذا المقاس واللون غير متوفر' : 'This size and color combination is not available')
-          return
-        }
-        
-        // Create Shopify checkout
-        const checkoutUrl = await createShopifyCheckout([
-          {
-            variantId: variant.id,
-            quantity: quantity,
-          }
-        ])
-        
-        // Redirect to Shopify checkout
-        window.location.href = checkoutUrl
-      } catch (error: any) {
-        console.error('Shopify checkout error:', error)
-        toast.error(error.message || (language === 'ar' ? 'فشل إنشاء الطلب' : 'Failed to create checkout'))
-      }
-      return
+    setIsBuyingNow(true)
+    try {
+      const checkoutUrl = await createShopifyCheckout([{ variantId: variant.id, quantity }])
+      window.location.href = checkoutUrl
+    } catch (error: any) {
+      console.error('Buy now checkout error:', error)
+      toast.error(
+        error.message || (language === 'ar' ? 'فشل إنشاء الطلب' : 'Failed to create checkout')
+      )
+      setIsBuyingNow(false)
     }
-    
-    // Supabase: Add to cart
-    if (!user) {
-      toast.error(language === 'ar' ? 'يرجى تسجيل الدخول أولاً' : 'Please login first')
-      return
+  }
+
+  const handleAddToCart = async () => {
+  if (!selectedSize || !selectedColor) {
+    toast.error(
+      language === 'ar'
+        ? 'من فضلك اختار المقاس واللون أولاً!'
+        : 'Please select size and color'
+    )
+    return
+  }
+
+  const useShopify = shouldUseShopify()
+
+  // =========================
+  // Shopify Cart
+  // =========================
+  if (useShopify) {
+    try {
+      const variant = getSelectedVariant()
+      if (!variant) return
+
+      const updatedCart = await addShopifyCartLine(variant.id, quantity)
+
+      queryClient.setQueryData(['shopify-cart'], updatedCart)
+
+      window.dispatchEvent(new Event('toggle-cart'))
+
+      toast.success(
+        language === 'ar'
+          ? 'تمت الإضافة للشنطة بنجاح! 🛍️'
+          : 'Added to cart successfully!'
+      )
+    } catch (error: any) {
+      console.error('Shopify add to cart error:', error)
+
+      toast.error(
+        error.message ||
+          (language === 'ar'
+            ? 'فشل الإضافة للشنطة'
+            : 'Failed to add to cart')
+      )
     }
 
-    console.log('Adding to cart:', {
-      productId: normalizedProduct.id,
+    return
+  }
+
+  // =========================
+  // Supabase Cart
+  // =========================
+  if (!user) {
+    toast.error(
+      language === 'ar'
+        ? 'يرجى تسجيل الدخول أولاً'
+        : 'Please login first'
+    )
+    return
+  }
+
+  console.log('Adding to cart:', {
+    productId: normalizedProduct.id,
+    quantity,
+    size: selectedSize,
+    color: selectedColor,
+  })
+
+  try {
+    await addToCart.mutateAsync({
+      userId: user.id,
+      productId: String(normalizedProduct.id),
       quantity,
       size: selectedSize,
       color: selectedColor,
     })
 
-    try {
-      await addToCart.mutateAsync({
-        userId: user.id,
-        productId: String(normalizedProduct.id),
-        quantity,
-        size: selectedSize,
-        color: selectedColor,
-      })
-      toast.success(language === 'ar' ? 'تمت الإضافة للشنطة بنجاح! 🛍️' : 'Added to cart successfully!')
-    } catch (error: any) {
-      console.error('Add to cart error:', error)
-      toast.error(error.message || (language === 'ar' ? 'فشل الإضافة للشنطة' : 'Failed to add to cart'))
-    }
+    toast.success(
+      language === 'ar'
+        ? 'تمت الإضافة للشنطة بنجاح! 🛍️'
+        : 'Added to cart successfully!'
+    )
+  } catch (error: any) {
+    console.error('Add to cart error:', error)
+
+    toast.error(
+      error.message ||
+        (language === 'ar'
+          ? 'فشل الإضافة للشنطة'
+          : 'Failed to add to cart')
+    )
   }
+}
 
   const handleShare = async () => {
     try {
@@ -367,12 +440,12 @@ const variant = normalizedProduct.variants?.find((v: any) => {
 
             {/* Price */}
             <div className="flex items-center gap-2 sm:gap-4">
-              <span className="text-2xl sm:text-3xl font-bold text-gradient">${discountedPrice.toFixed(2)}</span>
+              <span className="text-2xl sm:text-3xl font-bold text-gradient">{discountedPrice.toFixed(2)}EGP</span>
               {(normalizedProduct.discount || 0) > 0 && (
                 <>
-                  <span className="text-lg sm:text-xl text-muted-foreground line-through">${parseFloat(normalizedProduct.price.toString()).toFixed(2)}</span>
+                  <span className="text-lg sm:text-xl text-muted-foreground line-through">{parseFloat(normalizedProduct.price.toString()).toFixed(2)}EGP</span>
                   <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FF2A2A]/20 text-[#FF2A2A] text-xs sm:text-sm font-bold shadow-sm">
-                    {t.saveAmount.replace('{amount}', `$${(parseFloat(normalizedProduct.price.toString()) - discountedPrice).toFixed(2)}`)}
+                    {t.saveAmount.replace('{amount}', `{(parseFloat(normalizedProduct.price.toString()) - discountedPrice).toFixed(2)}EGP`)}
                   </span>
                 </>
               )}
@@ -442,8 +515,8 @@ const variant = normalizedProduct.variants?.find((v: any) => {
               </div>
             </div>
 
-            {/* Quantity & Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            {/* Quantity */}
+            <div className="flex items-center gap-3 sm:gap-4">
               <div className="flex items-center justify-center gap-2 sm:gap-3 bg-card border border-border rounded-full px-2 py-2 w-full sm:w-auto shrink-0 shadow-sm">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -459,13 +532,27 @@ const variant = normalizedProduct.variants?.find((v: any) => {
                   <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               </div>
+            </div>
 
+            {/* Actions: Add to Cart + Buy Now */}
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <button
                 onClick={handleAddToCart}
-                className="flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-4 rounded-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+                disabled={isBuyingNow}
+                className="flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-4 rounded-full bg-card border-2 border-[#6B46C1] text-[#6B46C1] font-bold hover:bg-[#6B46C1]/5 transition-all shadow-sm text-sm sm:text-base disabled:opacity-50"
               >
                 <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
                 {t.addToCart}
+              </button>
+
+              <button
+                onClick={handleBuyNow}
+                disabled={isBuyingNow}
+                className="flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-4 rounded-full bg-gradient-to-r from-[#6B46C1] to-[#3B82F6] text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl text-sm sm:text-base disabled:opacity-70"
+              >
+                {isBuyingNow
+                  ? (language === 'ar' ? 'جاري التحويل...' : 'Redirecting...')
+                  : (language === 'ar' ? 'اشتري الآن' : 'Buy Now')}
               </button>
 
               <div className="flex gap-2 justify-center">
@@ -534,7 +621,7 @@ const variant = normalizedProduct.variants?.find((v: any) => {
                   </div>
                   <h3 className="font-medium text-sm sm:text-base group-hover:text-[#6B46C1] text-foreground transition-colors line-clamp-1">{p.name}</h3>
                   <p className="font-bold text-sm sm:text-base text-foreground mt-1">
-                    ${(parseFloat(p.price.toString()) * (1 - (p.discount || 0) / 100)).toFixed(2)}
+                    {(parseFloat(p.price.toString()) * (1 - (p.discount || 0) / 100)).toFixed(2)}EGP
                   </p>
                 </Link>
               ))}

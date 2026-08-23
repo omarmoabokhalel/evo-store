@@ -506,10 +506,10 @@ function ProductCard({
             <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{product.description}</p>
             <div className="flex items-center gap-4">
               <span className="font-bold text-xl text-foreground">
-                ${(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                {(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)}EGP
               </span>
               {(product.discount || 0) > 0 && (
-                <span className="text-muted-foreground line-through">${product.price.toFixed(2)}</span>
+                <span className="text-muted-foreground line-through">{product.price.toFixed(2)}EGP</span>
               )}
             </div>
             <div className="flex items-center gap-2 mt-3">
@@ -576,10 +576,10 @@ function ProductCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="font-bold text-sm sm:text-base text-foreground">
-                ${(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                {(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)}EGP
               </span>
               {(product.discount || 0) > 0 && (
-                <span className="text-muted-foreground line-through text-xs sm:text-sm">${product.price.toFixed(2)}</span>
+                <span className="text-muted-foreground line-through text-xs sm:text-sm">{product.price.toFixed(2)}EGP</span>
               )}
             </div>
             <div className="flex items-center gap-0.5 sm:gap-1">

@@ -123,11 +123,11 @@ export default function NewArrivals() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 sm:gap-2">
                       <span className="font-bold text-xs sm:text-sm md:text-base lg:text-lg text-foreground">
-                        ${(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                        {(product.price * (1 - (product.discount || 0) / 100)).toFixed(2)} EGP
                       </span>
                       {(product.discount || 0) > 0 && (
                         <span className="text-muted-foreground line-through text-[10px] sm:text-xs md:text-sm">
-                          ${product.price.toFixed(2)}
+                          {product.price.toFixed(2)}EGP
                         </span>
                       )}
                     </div>
