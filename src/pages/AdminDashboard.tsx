@@ -11,7 +11,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Search,
-  Filter,
   BarChart3,
   Activity,
   Mail,
@@ -127,23 +126,6 @@ const totalRevenue = orders?.filter(o => o.status === 'delivered').reduce((acc, 
     { name: 'Women', value: products?.filter(p => p.category === 'women').length || 0 },
     { name: 'Unisex', value: products?.filter(p => p.category === 'unisex').length || 0 },
   ].filter(c => c.value > 0)
-
-  // Calculate recent orders from real data
-  const recentOrders = orders?.slice(0, 5).map(order => ({
-    id: order.id.slice(0, 8).toUpperCase(),
-    customer: order.address.split(' ').slice(-2).join(' ') || 'Unknown',
-    total: order.total,
-    status: order.status,
-    date: new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  })) || []
-
-  // Calculate top products from real data
-  const topProducts = products?.map(product => ({
-    name: product.name,
-    views: Math.floor(Math.random() * 1000) + 100, // Placeholder until we track views
-    sales: Math.floor(Math.random() * 50) + 10, // Placeholder until we track sales
-    revenue: product.price * (Math.floor(Math.random() * 50) + 10)
-  })).sort((a, b) => b.revenue - a.revenue).slice(0, 5) || []
 
   // Calculate sales data by day from orders
   const salesData = (() => {

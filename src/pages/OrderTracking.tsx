@@ -2,319 +2,165 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router'
 import { motion } from 'framer-motion'
 import {
-  Package,
   Truck,
-  CheckCircle,
   Clock,
   ChevronRight,
   ChevronLeft,
   Search,
-  MapPin,
-  Phone,
-  CreditCard,
+  MessageCircle,
   Banknote,
+  ArrowRight,
+  HelpCircle,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { getOrderById } from '@/services/orders'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
+import { getWhatsAppTrackingUrl } from '@/config/brand'
 
 export default function OrderTracking() {
   const { language } = useLanguageStore()
+  const isAr = language === 'ar'
   const t = translations[language]
 
-  const { orderId } = useParams<{ orderId: string }>()
-  const [searchId, setSearchId] = useState('')
+  const { orderId } = useParams<{ orderId?: string }>()
+  const initialId = orderId && orderId !== 'demo' ? orderId : ''
+  const [typedOrderId, setTypedOrderId] = useState(initialId)
 
-  // Fetch order by ID from Supabase
-  const { data: order, isLoading, error } = useQuery({ queryKey: ['order', orderId], queryFn: () => getOrderById(orderId || ''), enabled: !!orderId })
+  // Direct WhatsApp URL based on order ID
+  const whatsappUrl = getWhatsAppTrackingUrl(typedOrderId, isAr)
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleTrackSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (searchId.trim()) {
-      window.location.href = `/track-order/${searchId.trim()}`
-    }
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
   }
-
-  const getStatusSteps = (status: string) => {
-    const steps = [
-      {
-        id: 'pending',
-        label: t.statusPending,
-        icon: Package,
-        desc: language === 'ar' ? t.trackingSteps.pending : 'We have received your order',
-      },
-      {
-        id: 'processing',
-        label: t.statusProcessing,
-        icon: Clock,
-        desc: language === 'ar' ? t.trackingSteps.processing : 'Preparing your items',
-      },
-      {
-        id: 'shipped',
-        label: t.statusShipped,
-        icon: Truck,
-        desc: language === 'ar' ? t.trackingSteps.shipped : 'Your order is on the way',
-      },
-      {
-        id: 'delivered',
-        label: t.statusDelivered,
-        icon: CheckCircle,
-        desc: language === 'ar' ? t.trackingSteps.delivered : 'Order delivered successfully',
-      },
-    ]
-
-    const currentIndex = steps.findIndex((s) => s.id === status)
-    return steps.map((step, i) => ({
-      ...step,
-      isComplete: i <= currentIndex,
-      isCurrent: i === currentIndex,
-    }))
-  }
-
-  const getTranslatedColor = (colorName: string) => {
-    if (language === 'en') return colorName;
-    const colorMap: Record<string, string> = {
-      Black: 'أسود',
-      White: 'أبيض',
-      Grey: 'رمادي',
-      Navy: 'كحلي',
-      Red: 'أحمر',
-      Violet: 'بنفسجي',
-      Olive: 'زيتي',
-      Pink: 'روز',
-      Cream: 'كريمي',
-    }
-    return colorMap[colorName] || colorName;
-  }
-
-  const getTranslatedStatus = (status: string) => {
-    if (status === 'pending') return t.statusPending
-    if (status === 'processing') return t.statusProcessing
-    if (status === 'shipped') return t.statusShipped
-    if (status === 'delivered') return t.statusDelivered
-    return t.statusCancelled
-  }
-
-  if (isLoading) {
-    return (
-      <main className="min-h-screen bg-background pt-28 pb-20 transition-colors duration-300">
-        <div className="max-w-[800px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-20">
-            <div className="w-16 h-16 border-4 border-[#6B46C1] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-muted-foreground">{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</p>
-          </div>
-        </div>
-      </main>
-    )
-  }
-
-  if (!order || error) {
-    return (
-      <main className="min-h-screen bg-background pt-28 pb-20 transition-colors duration-300">
-        <div className="max-w-[800px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-20 bg-card border border-border rounded-3xl p-8 shadow-sm">
-            <Search className="w-16 h-16 text-foreground/10 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2 text-foreground">{t.trackTitle}</h1>
-            <p className="text-muted-foreground mb-6">
-              {language === 'ar' ? 'أدخل رقم طلبك لمتابعة خط سير الشحنة' : 'Enter your order ID to track your shipment'}
-            </p>
-            <form onSubmit={handleSearch} className="max-w-md mx-auto flex gap-2">
-              <input
-                type="text"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                placeholder={language === 'ar' ? 'مثال: EVO-XXXXX' : 'Enter order ID (e.g., EVO-XXXXX)'}
-                className="flex-1 px-4 py-3 rounded-full bg-foreground/5 border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#6B46C1]"
-              />
-              <button
-                type="submit"
-                className="px-6 py-3 rounded-full bg-[#6B46C1] text-white font-medium hover:opacity-90 transition-all shadow-sm"
-              >
-                {language === 'ar' ? 'تتبع' : 'Track'}
-              </button>
-            </form>
-          </div>
-        </div>
-      </main>
-    )
-  }
-
-  const steps = getStatusSteps(order.status)
-  const progress = ((steps.filter((s) => s.isComplete).length - 1) / (steps.length - 1)) * 100
 
   return (
-    <main className="min-h-screen bg-background pt-28 pb-20 transition-colors duration-300">
-      <div className="max-w-[800px] mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
+    <main className="min-h-screen bg-background pt-32 pb-24 text-foreground transition-colors duration-300">
+      <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mb-8">
+          <Link to="/" className="hover:text-foreground transition-colors">
+            {t.navHome}
+          </Link>
+          {isAr ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          <span className="text-foreground font-semibold">
+            {t.trackTitle}
+          </span>
+        </nav>
+
+        {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          className="text-center mb-10 sm:mb-14"
         >
-          <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-            <Link to="/" className="hover:text-foreground transition-colors font-medium">{t.navHome}</Link>
-            {language === 'ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            <Link to="/profile" className="hover:text-foreground transition-colors font-medium">{t.profile}</Link>
-            {language === 'ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            <span className="text-foreground font-bold">{t.trackTitle}</span>
-          </nav>
-          <h1 className="text-3xl font-bold tracking-[-0.02em] text-foreground mb-2">
-            {language === 'ar' ? 'طلب رقم' : 'Order #'} {order.id.slice(0, 8)}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-xs sm:text-sm font-bold uppercase tracking-wider mb-4">
+            <MessageCircle className="w-4 h-4" />
+            {isAr ? 'تتبع فوري ومباشر عبر واتساب' : 'Direct WhatsApp Order Tracking'}
+          </div>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground mb-4">
+            {t.trackTitle}
           </h1>
-          <p className="text-muted-foreground font-medium text-sm">
-            {language === 'ar' ? 'تم الطلب في ' : 'Placed on '}
-            {new Date(order.created_at).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+          <p className="text-muted-foreground text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+            {t.trackSubtitle}
           </p>
         </motion.div>
 
-        {/* Progress */}
+        {/* Tracking Card */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="p-6 rounded-3xl bg-card border border-border mb-8 shadow-sm"
+          className="p-6 sm:p-10 rounded-3xl bg-zinc-950 border border-zinc-800 text-white shadow-2xl mb-12 relative overflow-hidden"
         >
-          {/* Progress Bar */}
-          <div className="relative h-2.5 bg-foreground/5 rounded-full mb-8 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.max(0, progress)}%` }}
-              transition={{ duration: 1, delay: 0.3 }}
-              className={`absolute h-full rounded-full bg-gradient-to-r ${language === 'ar' ? 'from-[#3B82F6] to-[#6B46C1] right-0' : 'from-[#6B46C1] to-[#3B82F6] left-0'}`}
-            />
-          </div>
+          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          {/* Steps */}
-          <div className="grid grid-cols-4 gap-2 sm:gap-4">
-            {steps.map((step, i) => (
-              <motion.div
-                key={step.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + i * 0.1 }}
-                className="text-center"
-              >
-                <div
-                  className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-2 transition-all ${
-                    step.isComplete
-                      ? 'bg-gradient-to-br from-[#6B46C1] to-[#3B82F6] text-white shadow-sm'
-                      : 'bg-foreground/5 text-muted-foreground'
-                  }`}
-                >
-                  <step.icon
-                    className={`w-5 h-5 ${step.isComplete ? 'text-white' : 'text-muted-foreground/50'}`}
-                  />
-                </div>
-                <p className={`text-xs sm:text-sm font-bold ${step.isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {step.label}
-                </p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground/60 mt-1 line-clamp-2 leading-relaxed hidden sm:block">{step.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Order Details */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="grid md:grid-cols-2 gap-6"
-        >
-          {/* Items */}
-          <div className="p-6 rounded-3xl bg-card border border-border shadow-sm">
-            <h2 className="font-bold text-foreground mb-4 border-b border-border pb-2">
-              {language === 'ar' ? 'المنتجات المطلوبة' : 'Order Items'}
-            </h2>
-            <div className="space-y-4">
-              {order.items.map((item: any, i: number) => (
-                <div key={i} className="flex gap-4">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="w-16 h-20 object-cover rounded-xl border border-border bg-foreground/5"
-                  />
-                  <div>
-                    <p className="font-bold text-foreground text-sm">{item.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {t.size}: {item.size} / {t.color}: {getTranslatedColor(item.color)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {t.quantityAbbr}: {item.quantity}
-                    </p>
-                    <p className="font-bold text-foreground text-sm mt-1">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Shipping & Payment */}
-          <div className="space-y-6">
-            <div className="p-6 rounded-3xl bg-card border border-border shadow-sm">
-              <h2 className="font-bold text-foreground mb-4 flex items-center gap-2 border-b border-border pb-2">
-                <MapPin className="w-5 h-5 text-[#6B46C1]" />
-                {t.shippingAddress}
-              </h2>
-              <p className="text-muted-foreground text-sm leading-relaxed">{order.address}</p>
-              <div className="flex items-center gap-2 mt-4 text-muted-foreground text-xs font-semibold">
-                <Phone className="w-4 h-4 text-[#6B46C1]" />
-                <span dir="ltr">{order.phone}</span>
+          <form onSubmit={handleTrackSubmit} className="relative z-10 space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-zinc-300 mb-2">
+                {t.trackOrderNo}
+              </label>
+              <div className="relative">
+                <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder={t.enterOrderNumber}
+                  value={typedOrderId}
+                  onChange={(e) => setTypedOrderId(e.target.value)}
+                  className="w-full ps-12 pe-4 py-4 rounded-2xl bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-base"
+                />
               </div>
             </div>
 
-            <div className="p-6 rounded-3xl bg-card border border-border shadow-sm">
-              <h2 className="font-bold text-foreground mb-4 border-b border-border pb-2">
-                {language === 'ar' ? 'تفاصيل الدفع الكلي' : 'Payment Summary'}
-              </h2>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{t.paymentMethod}</span>
-                  <span className="flex items-center gap-1.5 text-foreground font-semibold">
-                    {order.payment_method === 'cod' ? (
-                      <Banknote className="w-4 h-4 text-[#FBBF24]" />
-                    ) : (
-                      <CreditCard className="w-4 h-4 text-[#3B82F6]" />
-                    )}
-                    {order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method === 'instapay' ? 'Instapay' : 'Vodafone Cash'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{t.orderStatus}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    order.status === 'delivered' ? 'bg-green-500/10 text-green-500' :
-                    order.status === 'cancelled' ? 'bg-red-500/10 text-red-500' :
-                    'bg-[#6B46C1]/10 text-[#6B46C1]'
-                  }`}>
-                    {getTranslatedStatus(order.status)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-lg font-bold pt-3 border-t border-border mt-3">
-                  <span className="text-foreground">{t.total}</span>
-                  <span className="text-gradient">${order.total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+            {/* Prominent WhatsApp Tracking Button */}
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-3 py-4 sm:py-5 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-base sm:text-lg transition-all shadow-xl hover:shadow-[0_0_30px_rgba(37,211,102,0.4)]"
+            >
+              <MessageCircle className="w-6 h-6 fill-current" />
+              <span>{t.trackViaWhatsApp}</span>
+              <ArrowRight className="w-5 h-5 rtl:rotate-180" />
+            </a>
+
+            <p className="text-center text-xs text-zinc-400">
+              {isAr
+                ? 'سيتم توجيهك مباشرة لمحادثة فريق متابعة الشحن في EVO على واتساب برقم طلبك.'
+                : 'You will be redirected to EVO Customer Care on WhatsApp with your order reference.'}
+            </p>
+          </form>
         </motion.div>
 
-        {/* Track Another */}
-        <div className="mt-8 text-center">
-          <Link
-            to="/track-order/search"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-foreground/5 border border-border text-muted-foreground hover:text-foreground transition-all shadow-sm"
-          >
-            <Search className="w-4 h-4" />
-            {language === 'ar' ? 'تتبع شحنة تانية' : 'Track Another Order'}
-          </Link>
+        {/* Shipping Promises Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-12">
+          <div className="p-5 rounded-2xl bg-card border border-border space-y-2">
+            <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+              <Truck className="w-4 h-4 text-[#6B46C1]" />
+              {isAr ? 'شحن موحد 25 ج.م' : 'Flat 25 EGP Shipping'}
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {isAr ? 'شحن ثابت لجميع المحافظات بدون أي مصاريف إضافية.' : 'Nominal fixed fee across all Egyptian governorates.'}
+            </p>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-card border border-border space-y-2">
+            <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+              <Clock className="w-4 h-4 text-blue-500" />
+              {isAr ? '3-5 أيام عمل' : '3-5 Business Days'}
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {isAr ? 'تجهيز سريع وفحص جودة قبل خروج الشحنة مع المندوب.' : 'Fast preparation and delivery straight to your doorstep.'}
+            </p>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-card border border-border space-y-2">
+            <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+              <Banknote className="w-4 h-4 text-emerald-500" />
+              {isAr ? 'الدفع كاش عند الاستلام' : 'Cash on Delivery (COD)'}
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {isAr ? 'معاينة تامة للتيشيرت والخامة قبل دفع المبلغ للمندوب.' : 'Inspect fabric, fit, and print before paying the courier.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Why WhatsApp Tracking Explanation */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-card border border-border shadow-sm space-y-3">
+          <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-[#6B46C1]" />
+            {t.trackingHelpTitle}
+          </h2>
+          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            {t.trackingHelpDesc}
+          </p>
+          <div className="pt-2 flex flex-wrap gap-4 text-xs font-semibold text-[#6B46C1]">
+            <Link to="/shipping-policy" className="hover:underline">
+              {isAr ? '← تفاصيل سياسة الشحن' : 'Shipping Policy →'}
+            </Link>
+            <Link to="/returns-exchange-policy" className="hover:underline">
+              {isAr ? '← سياسة استبدال المقاس' : 'Size Exchange Policy →'}
+            </Link>
+          </div>
         </div>
       </div>
     </main>

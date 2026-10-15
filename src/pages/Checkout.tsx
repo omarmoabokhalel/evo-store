@@ -13,7 +13,7 @@ import {
   User,
 } from 'lucide-react'
 import { useSupabaseAuth } from '@/providers/SupabaseAuthProvider'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { getCartItems, clearCart } from '@/services/cart'
 import { createOrder } from '@/services/orders'
 import { getProducts } from '@/services/products'
@@ -45,7 +45,6 @@ export default function Checkout() {
     return colorMap[originalName] || originalName;
   };
   const { user } = useSupabaseAuth()
-  const queryClient = useQueryClient()
   const useShopify = shouldUseShopify()
   const { data: cartItems } = useQuery({ queryKey: ['cart'], queryFn: () => getCartItems(user?.id || ''), enabled: !!user })
   const createOrderMutation = useMutation({ mutationFn: createOrder })

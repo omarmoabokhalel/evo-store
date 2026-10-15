@@ -247,7 +247,7 @@ export default function CartDrawer() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-foreground">
-                              ${(parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity).toFixed(2)}
+                              {(parseFloat(String(item.product.price || 0)) * (1 - parseFloat(String(item.product.discount || 0)) / 100) * item.quantity).toFixed(0)} EGP
                             </span>
                             <button
                               onClick={() => removeItemMutation.mutate(item.id)}
@@ -271,7 +271,7 @@ export default function CartDrawer() {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{t.subtotal}</span>
                     <span className="font-semibold text-foreground">
-                      {useShopify ? `${totalPrice.toFixed(2)} ${shopifyCart?.currencyCode || ''}` : `$${totalPrice.toFixed(2)}`}
+                      {useShopify ? `${totalPrice.toFixed(0)} ${shopifyCart?.currencyCode || 'EGP'}` : `${totalPrice.toFixed(0)} EGP`}
                     </span>
                   </div>
                   {discountedPrice < totalPrice && (
@@ -279,15 +279,15 @@ export default function CartDrawer() {
                       <span className="text-[#6B46C1] font-bold">{t.productDiscount}</span>
                       <span className="text-[#6B46C1] font-bold">
                         {useShopify
-                          ? `-${(totalPrice - discountedPrice).toFixed(2)} ${shopifyCart?.currencyCode || ''}`
-                          : `-$${(totalPrice - discountedPrice).toFixed(2)}`}
+                          ? `-${(totalPrice - discountedPrice).toFixed(0)} ${shopifyCart?.currencyCode || 'EGP'}`
+                          : `-${(totalPrice - discountedPrice).toFixed(0)} EGP`}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
                     <span className="text-foreground">{t.total}</span>
                     <span className="text-gradient">
-                      {useShopify ? `${finalPrice.toFixed(2)} ${shopifyCart?.currencyCode || ''}` : `$${finalPrice.toFixed(2)}`}
+                      {useShopify ? `${finalPrice.toFixed(0)} ${shopifyCart?.currencyCode || 'EGP'}` : `${finalPrice.toFixed(0)} EGP`}
                     </span>
                   </div>
                 </div>

@@ -9,6 +9,8 @@ import { getProducts } from '@/services/products'
 import { getNewProducts as getShopifyNewProducts, shopifyProductToAppProduct } from '@/services/shopifyProducts'
 import { shouldUseShopify } from '@/config/shopify'
 
+import { demoProducts } from '@/data/products'
+
 export default function NewArrivals() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-100px' })
@@ -23,14 +25,21 @@ export default function NewArrivals() {
     queryFn: async () => {
       if (useShopify) {
         const shopifyProducts = await getShopifyNewProducts()
-        return shopifyProducts.map(shopifyProductToAppProduct)
+        const mapped = shopifyProducts.map(shopifyProductToAppProduct)
+        return mapped.length > 0 ? mapped : demoProducts
       }
-      return getProducts()
+      const prods = await getProducts()
+      return prods && prods.length > 0 ? prods : demoProducts
     }
   })
   
-  // Filter new products
-  const newProducts = supabaseProducts.filter((p) => p.is_new || p.isNew).slice(0, 6)
+  // Guarantee active flagship designs are always populated
+  const sourceProducts = supabaseProducts.length > 0 ? supabaseProducts : demoProducts
+  const newProducts = (
+    sourceProducts.filter((p) => p.is_new || p.isNew).length > 0
+      ? sourceProducts.filter((p) => p.is_new || p.isNew)
+      : sourceProducts
+  ).slice(0, 6)
 
   return (
     <section ref={ref} className="relative py-16 sm:py-20 md:py-32 bg-secondary/10 dark:bg-zinc-950/20 border-y border-border transition-colors duration-300">

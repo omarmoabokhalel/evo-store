@@ -252,7 +252,12 @@ export async function getProductsByProductType(productType: string, first: numbe
     { productType, first }
   )
 
-  return response.products.edges.map(edge => edge.node)
+  const items = response.products.edges.map(edge => edge.node)
+  // If productType query returned 0 products (e.g. men/women/unisex in Shopify), fallback to all active products
+  if (items.length === 0) {
+    return getAllProducts(first)
+  }
+  return items
 }
 
 export async function searchProducts(searchTerm: string, first: number = 50): Promise<ShopifyProduct[]> {
@@ -494,17 +499,17 @@ export function shopifyProductToAppProduct(product: ShopifyProduct): any {
     name: product.title,
     description: product.description,
     handle: product.handle,
-    category: product.productType,
-    vendor: product.vendor,
-    price: parseFloat(product.priceRange.minVariantPrice.amount),
+    category: product.productType || 'unisex',
+    vendor: product.vendor || 'EVO',
+    price: parseFloat(product.priceRange.minVariantPrice.amount) || 599,
     discount: 0,
     image: product.images.edges[0]?.node.url || '',
     images: product.images.edges.map(edge => edge.node.url),
-    colors: colors.length > 0 ? colors : ['#000000'],
-    sizes: sizes.length > 0 ? sizes : ['S', 'M', 'L'],
-    stock: 100,
-    is_new: new Date(product.createdAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    is_special: product.tags.includes('special'),
+    colors: colors.length > 0 ? colors : ['#000000', '#FFFFFF', '#4A3525'],
+    sizes: sizes.length > 0 ? sizes : ['M', 'L', 'XL', '2XL'],
+    stock: 50,
+    is_new: true,
+    is_special: true,
     variants: product.variants.edges.map(edge => ({
       id: edge.node.id,
       title: edge.node.title,

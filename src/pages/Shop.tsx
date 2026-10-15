@@ -9,7 +9,7 @@ import {
   LayoutGrid,
   LayoutList,
 } from 'lucide-react'
-import { categories, colorOptions, designTypes } from '@/data/products'
+import { categories, colorOptions, designTypes, demoProducts } from '@/data/products'
 import type { Product } from '@/data/products'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
@@ -29,35 +29,57 @@ export default function Shop() {
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const [selectedColors, setSelectedColors] = useState<string[]>([])
   const [selectedDesigns, setSelectedDesigns] = useState<string[]>([])
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000])
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 2000])
   const [sortBy, setSortBy] = useState('newest')
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   const useShopify = shouldUseShopify()
 
-  // Fetch products from Supabase or Shopify
+  // Fetch products from Supabase or Shopify with demo fallback
   const { data: allProducts = [], isLoading } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
       if (useShopify) {
         const shopifyProducts = await getShopifyProducts()
-        return shopifyProducts.map(shopifyProductToAppProduct)
+        const mapped = shopifyProducts.map(shopifyProductToAppProduct)
+        return mapped.length > 0 ? mapped : demoProducts
       }
-      return getProducts()
+      const prods = await getProducts()
+      return prods && prods.length > 0 ? prods : demoProducts
     }
   })
+
   const { data: categoryProducts = [] } = useQuery({
     queryKey: ['products', 'category', selectedCategory],
     queryFn: async () => {
+      // Map Men, Women, and Unisex to active unisex streetwear collection
+      if (selectedCategory === 'men' || selectedCategory === 'women' || selectedCategory === 'unisex') {
+        if (useShopify) {
+          const shopifyProducts = await getShopifyProducts()
+          const mapped = shopifyProducts.map(shopifyProductToAppProduct)
+          return mapped.length > 0 ? mapped : demoProducts
+        }
+        const prods = await getProducts()
+        return prods && prods.length > 0 ? prods : demoProducts
+      }
+
       if (useShopify) {
         const shopifyProducts = await getShopifyProductsByType(selectedCategory)
-        return shopifyProducts.map(shopifyProductToAppProduct)
+        const mapped = shopifyProducts.map(shopifyProductToAppProduct)
+        if (mapped.length === 0) {
+          const all = await getShopifyProducts()
+          const allMapped = all.map(shopifyProductToAppProduct)
+          return allMapped.length > 0 ? allMapped : demoProducts
+        }
+        return mapped
       }
-      return getProductsByCategory(selectedCategory)
+      const prods = await getProductsByCategory(selectedCategory)
+      return prods && prods.length > 0 ? prods : demoProducts
     },
     enabled: selectedCategory !== 'all'
   })
+
   const { data: searchResults = [] } = useQuery({
     queryKey: ['products', 'search', searchQuery],
     queryFn: async () => {
@@ -75,11 +97,26 @@ export default function Shop() {
     setSearchQuery(query)
   }, [searchParams])
 
-  const sizes = ['S', 'M', 'L', 'XL', 'XXL']
+  useEffect(() => {
+    if (category) {
+      setSelectedCategory(category)
+    }
+  }, [category])
+
+  // Flagship streetwear sizes
+  const sizes = ['M', 'L', 'XL', '2XL']
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    let result = searchQuery.length > 0 ? searchResults : (selectedCategory !== 'all' ? categoryProducts : allProducts)
+    const baseProducts = selectedCategory !== 'all' && categoryProducts.length > 0
+      ? categoryProducts
+      : (allProducts.length > 0 ? allProducts : demoProducts)
+    let result = searchQuery.length > 0 ? searchResults : [...baseProducts]
+
+    // If searching returned empty or category fallback is needed
+    if (result.length === 0 && (selectedCategory === 'men' || selectedCategory === 'women' || selectedCategory === 'unisex')) {
+      result = allProducts.length > 0 ? [...allProducts] : [...demoProducts]
+    }
 
     // Size filter
     if (selectedSizes.length > 0) {

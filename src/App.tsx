@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import CartDrawer from '@/components/CartDrawer'
 import WheelOfFortune from '@/components/WheelOfFortune'
+import FloatingWhatsApp from '@/components/FloatingWhatsApp'
 import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
 import ScrollToTop from '@/components/ScrollToTop'
@@ -24,6 +25,13 @@ const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'))
 const Login = lazy(() => import('@/pages/Login'))
 const AdminLogin = lazy(() => import('@/pages/AdminLogin'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
+
+// Policy & Information Pages
+const ShippingPolicy = lazy(() => import('@/pages/ShippingPolicy'))
+const ReturnsExchangePolicy = lazy(() => import('@/pages/ReturnsExchangePolicy'))
+const SizeGuide = lazy(() => import('@/pages/SizeGuide'))
+const Terms = lazy(() => import('@/pages/Terms'))
+const Privacy = lazy(() => import('@/pages/Privacy'))
 
 function LoadingFallback() {
   return (
@@ -60,7 +68,13 @@ export default function App() {
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/track-order" element={<OrderTracking />} />
             <Route path="/track-order/:orderId" element={<OrderTracking />} />
+            <Route path="/shipping-policy" element={<ShippingPolicy />} />
+            <Route path="/returns-exchange-policy" element={<ReturnsExchangePolicy />} />
+            <Route path="/size-guide" element={<SizeGuide />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route path="/upload-receipt/:orderId" element={<UploadReceipt />} />
             <Route path="/customizer" element={<Customizer />} />
             <Route path="/admin" element={<AdminDashboard />} />
@@ -72,6 +86,7 @@ export default function App() {
         <Footer />
         <CartDrawer />
         <WheelOfFortune />
+        <FloatingWhatsApp />
         <Toaster position="top-center" style={{ marginTop: '80px' }} />
       </div>
     </SupabaseAuthProvider>

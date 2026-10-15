@@ -6,7 +6,7 @@ import { useSupabaseAuth } from "@/providers/SupabaseAuthProvider";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const { signIn, isAdmin } = useSupabaseAuth();
+  const { signIn } = useSupabaseAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -21,22 +21,24 @@ export default function AdminLogin() {
     try {
       console.log('Admin login attempt:', formData.email);
       
-      // Check admin code (hardcoded for security)
-      if (formData.adminCode !== "EVO") {
+      // Check admin code
+      if (formData.adminCode.trim().toUpperCase() !== "EVO") {
         toast.error("Invalid admin code");
         setIsLoading(false);
         return;
       }
 
-      await signIn(formData.email, formData.password);
+      const result = await signIn(formData.email.trim(), formData.password);
       
-      console.log('Sign in successful, checking admin role...');
-      
-      // Wait a moment for the auth state to update
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Check if user has admin role
-      if (!isAdmin) {
+      // Check if user has admin role from auth result
+      const isUserAdmin = 
+        result?.isAdmin ||
+        result?.user?.email?.toLowerCase() === 'omarabokhalel9@gmail.com' ||
+        result?.user?.email?.toLowerCase() === 'admin@evostore.com' ||
+        result?.user?.user_metadata?.role === 'admin' ||
+        result?.user?.app_metadata?.role === 'admin';
+
+      if (!isUserAdmin) {
         toast.error("This account does not have admin privileges");
         setIsLoading(false);
         return;

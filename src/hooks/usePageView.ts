@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
 import { trackPageView } from '@/services/analytics'
+import { trackPixelPageView } from '@/services/pixel'
 
 export function usePageView() {
   const location = useLocation()
@@ -15,11 +16,13 @@ export function usePageView() {
       localStorage.setItem('session_id', sessionId)
     }
 
-    // Track page view
-    console.log('Tracking page view:', location.pathname)
+    // Track internal analytics
     trackPageViewMutation.mutate({
       page: location.pathname,
       sessionId,
     })
+
+    // Track Meta Pixel PageView
+    trackPixelPageView(location.pathname)
   }, [location.pathname])
 }

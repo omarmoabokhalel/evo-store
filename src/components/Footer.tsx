@@ -1,11 +1,14 @@
 import { Link } from 'react-router'
-import { Shirt, Instagram, Twitter, Mail, MapPin, Phone } from 'lucide-react'
+import { Shirt, Instagram, MessageCircle, Mail, MapPin, Phone } from 'lucide-react'
 import { useLanguageStore } from '@/stores/languageStore'
 import { translations } from '@/data/translations'
+import { BRAND_CONFIG, getWhatsAppSupportUrl } from '@/config/brand'
 
 export default function Footer() {
   const { language } = useLanguageStore()
+  const isAr = language === 'ar'
   const t = translations[language]
+  const whatsappUrl = getWhatsAppSupportUrl(undefined, isAr)
 
   return (
     <footer className="bg-secondary/20 dark:bg-zinc-950/40 border-t border-border transition-colors duration-300">
@@ -24,19 +27,31 @@ export default function Footer() {
               {t.heroDescription}
             </p>
             <div className="flex items-center gap-3">
-              {[
-                { icon: Instagram, label: 'Instagram' },
-                { icon: Twitter, label: 'Twitter' },
-                { icon: Mail, label: 'Email' },
-              ].map(({ icon: Icon, label }) => (
-                <button
-                  key={label}
-                  className="w-10 h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center transition-all"
-                  title={label}
-                >
-                  <Icon className="w-4 h-4 text-foreground/60" />
-                </button>
-              ))}
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full bg-[#25D366]/10 hover:bg-[#25D366]/20 flex items-center justify-center transition-all text-[#25D366]"
+                title="WhatsApp Support"
+              >
+                <MessageCircle className="w-4 h-4 fill-current" />
+              </a>
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center transition-all text-foreground/60 hover:text-foreground"
+                title="Instagram"
+              >
+                <Instagram className="w-4 h-4" />
+              </a>
+              <a
+                href={`mailto:${BRAND_CONFIG.supportEmail}`}
+                className="w-10 h-10 rounded-full bg-foreground/5 hover:bg-foreground/10 flex items-center justify-center transition-all text-foreground/60 hover:text-foreground"
+                title="Email Support"
+              >
+                <Mail className="w-4 h-4" />
+              </a>
             </div>
           </div>
 
@@ -47,9 +62,9 @@ export default function Footer() {
             </h3>
             <ul className="space-y-3">
               {[
-                { path: '/shop/men', label: t.navMen },
-                { path: '/shop/women', label: t.navWomen },
                 { path: '/shop', label: t.allProducts },
+                { path: '/shop/men', label: isAr ? 'رجالي (أوفرسايز)' : 'Men (Oversized)' },
+                { path: '/shop/women', label: isAr ? 'حريمي (أوفرسايز)' : 'Women (Oversized)' },
                 { path: '/customizer', label: t.navAIShowroom },
               ].map((link) => (
                 <li key={link.path}>
@@ -61,19 +76,19 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Support */}
+          {/* Support & Policies */}
           <div>
             <h3 className="font-bold text-sm uppercase tracking-[0.1em] text-foreground mb-6">
-              {language === 'ar' ? 'الدعم والمساعدة' : 'Support'}
+              {isAr ? 'الدعم والسياسات' : 'Support & Policies'}
             </h3>
             <ul className="space-y-3">
               {[
-                { label: t.sizeGuideTitle, path: '/shop' },
-                { label: t.trackYourOrder, path: '/track-order/demo' },
-                { label: language === 'ar' ? 'معلومات الشحن' : 'Shipping Info', path: '/shop' },
-                { label: language === 'ar' ? 'سياسة الاسترجاع' : 'Returns Policy', path: '/shop' },
+                { label: t.sizeGuideTitle, path: '/size-guide' },
+                { label: t.trackYourOrder, path: '/track-order' },
+                { label: isAr ? 'سياسة الشحن (25 ج)' : 'Shipping Policy (25 EGP)', path: '/shipping-policy' },
+                { label: isAr ? 'سياسة استبدال المقاس (14 يوم)' : 'Returns & Exchange (14 Days)', path: '/returns-exchange-policy' },
               ].map((link) => (
-                <li key={link.label}>
+                <li key={link.path}>
                   <Link to={link.path} className="text-muted-foreground hover:text-foreground transition-colors text-sm">
                     {link.label}
                   </Link>
@@ -85,22 +100,35 @@ export default function Footer() {
           {/* Contact */}
           <div>
             <h3 className="font-bold text-sm uppercase tracking-[0.1em] text-foreground mb-6">
-              {language === 'ar' ? 'تواصل معنا' : 'Contact'}
+              {isAr ? 'تواصل معنا' : 'Contact Us'}
             </h3>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-[#6B46C1] mt-0.5 shrink-0" />
                 <span className="text-muted-foreground text-sm">
-                  {language === 'ar' ? 'منطقة الأزياء، دمنهور، مصر' : 'Fashion District, Damanhour, Egypt'}
+                  {isAr ? BRAND_CONFIG.locationAr : BRAND_CONFIG.location}
                 </span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-[#6B46C1] shrink-0" />
-                <span className="text-muted-foreground text-sm" dir="ltr">+201277627382</span>
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-[#25D366] text-sm transition-colors"
+                  dir="ltr"
+                >
+                  +{BRAND_CONFIG.whatsappNumber}
+                </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-[#6B46C1] shrink-0" />
-                <span className="text-muted-foreground text-sm">evo.brand.eg@gmail.com</span>
+                <a
+                  href={`mailto:${BRAND_CONFIG.supportEmail}`}
+                  className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+                >
+                  {BRAND_CONFIG.supportEmail}
+                </a>
               </li>
             </ul>
           </div>
@@ -113,14 +141,14 @@ export default function Footer() {
             <p className="text-primary font-medium text-[11px] tracking-wide">{t.footerMadeInEgypt}</p>
           </div>
           <div className="flex items-center gap-6">
-            <Link to="/" className="text-muted-foreground hover:text-foreground text-xs transition-colors">
-              {language === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}
+            <Link to="/privacy" className="text-muted-foreground hover:text-foreground text-xs transition-colors">
+              {isAr ? 'سياسة الخصوصية' : 'Privacy Policy'}
             </Link>
-            <Link to="/" className="text-muted-foreground hover:text-foreground text-xs transition-colors">
-              {language === 'ar' ? 'شروط الخدمة' : 'Terms of Service'}
+            <Link to="/terms" className="text-muted-foreground hover:text-foreground text-xs transition-colors">
+              {isAr ? 'شروط الخدمة' : 'Terms of Service'}
             </Link>
-            <Link to="/" className="text-muted-foreground hover:text-foreground text-xs transition-colors">
-              {language === 'ar' ? 'سياسة ملفات الارتباط' : 'Cookie Policy'}
+            <Link to="/shipping-policy" className="text-muted-foreground hover:text-foreground text-xs transition-colors">
+              {isAr ? 'الشحن والتوصيل' : 'Shipping Info'}
             </Link>
           </div>
         </div>

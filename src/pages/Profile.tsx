@@ -49,9 +49,6 @@ export default function Profile() {
     }
   }, [activeTab])
 
-  // Placeholder for recently viewed products (to be implemented)
-  const lastViewed: any[] = []
-
   if (loading) {
     return (
       <main className="min-h-screen bg-background pt-28 flex items-center justify-center transition-colors duration-300">
@@ -316,7 +313,7 @@ export default function Profile() {
                     <label className="block text-sm text-muted-foreground mb-2">{language === 'ar' ? 'الاسم بالكامل' : 'Display Name'}</label>
                     <input
                       type="text"
-                      defaultValue={user?.name || ''}
+                      defaultValue={(user as any)?.name || user?.user_metadata?.name || ''}
                       className="w-full px-4 py-3 rounded-xl bg-foreground/5 border border-border text-foreground focus:outline-none focus:border-[#6B46C1] transition-colors"
                     />
                   </div>

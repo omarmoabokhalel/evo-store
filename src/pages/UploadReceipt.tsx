@@ -1,16 +1,14 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
-import { Upload, ArrowRight, CheckCircle } from 'lucide-react'
+import { Upload, ArrowRight } from 'lucide-react'
 import { useLanguageStore } from '@/stores/languageStore'
-import { translations } from '@/data/translations'
 import { useMutation } from '@tanstack/react-query'
 import { uploadReceipt as uploadReceiptService } from '@/services/orders'
 import { toast } from 'sonner'
 
 export default function UploadReceipt() {
   const { language } = useLanguageStore()
-  const t = translations[language]
   const { orderId } = useParams<{ orderId: string }>()
   const navigate = useNavigate()
 
